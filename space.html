@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Space Shuttle Flyby</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  #ui { position: fixed; left: 16px; bottom: 14px; display: flex; gap: 8px; align-items: center; color: #8a90b8; font-size: 13px; }
+  button { background: #141a3a; color: #cfd6ff; border: 1px solid #2c356b; border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  button:hover { background: #1d2552; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <button onclick="location.href='index.html'">← 돌아가기</button>
+  <button id="cam">카메라: 자유 시점</button>
+  <span>드래그: 회전 · 휠: 확대/축소</span>
+</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 2000);
+camera.position.set(0, 45, 85);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxDistance = 400;
+
+// ---------- helpers ----------
+function noiseTexture(base, accents, bands = false) {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, c.width, c.height);
+  for (let i = 0; i < 700; i++) {
+    g.fillStyle = accents[Math.floor(Math.random() * accents.length)];
+    g.globalAlpha = 0.08 + Math.random() * 0.2;
+    if (bands) {
+      g.fillRect(0, Math.random() * c.height, c.width, 2 + Math.random() * 10);
+    } else {
+      g.beginPath();
+      g.arc(Math.random() * c.width, Math.random() * c.height, 3 + Math.random() * 26, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function glowTexture(inner, outer) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, inner); gr.addColorStop(0.25, outer); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+
+// ---------- stars ----------
+{
+  const N = 6000;
+  const pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 600 + Math.random() * 300, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    pos.set([r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th)], i * 3);
+    new THREE.Color().setHSL(Math.random() < 0.5 ? 0.6 : 0.1, 0.4, 0.6 + Math.random() * 0.4).toArray(col, i * 3);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ size: 2, vertexColors: true, sizeAttenuation: false, fog: false })));
+}
+
+// ---------- sun ----------
+scene.add(new THREE.AmbientLight(0x223355, 0.6));
+const sunLight = new THREE.PointLight(0xfff0d0, 6000, 0, 2);
+scene.add(sunLight);
+const sun = new THREE.Mesh(
+  new THREE.SphereGeometry(5, 48, 48),
+  new THREE.MeshBasicMaterial({ map: noiseTexture('#ffb320', ['#ff7a00', '#fff2a0', '#ff5a00']) })
+);
+scene.add(sun);
+const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: glowTexture('rgba(255,220,140,1)', 'rgba(255,140,40,0.35)'),
+  blending: THREE.AdditiveBlending, depthWrite: false
+}));
+glow.scale.setScalar(30);
+scene.add(glow);
+
+// ---------- planets ----------
+const planetDefs = [
+  { name: 'mercury', r: 0.8, orbit: 10, speed: 0.9, tex: ['#8d8a85', ['#5e5b57', '#b3afa8']] },
+  { name: 'venus',   r: 1.3, orbit: 15, speed: 0.65, tex: ['#d8a65a', ['#e8c88a', '#b9823a']], bands: true },
+  { name: 'earth',   r: 1.5, orbit: 21, speed: 0.5, tex: ['#1f5fbf', ['#2f8a3c', '#ffffff', '#3d9ad8']] },
+  { name: 'mars',    r: 1.1, orbit: 27, speed: 0.4, tex: ['#b5532f', ['#8a3a1e', '#d98a5f']] },
+  { name: 'jupiter', r: 3.4, orbit: 40, speed: 0.22, tex: ['#d3b08a', ['#b5764a', '#f0dcc0', '#8e5a3a']], bands: true },
+  { name: 'saturn',  r: 2.8, orbit: 54, speed: 0.16, tex: ['#e3cf9a', ['#c9b074', '#f3e6c2']], bands: true, ring: true },
+  { name: 'uranus',  r: 2.0, orbit: 65, speed: 0.11, tex: ['#7fd4d9', ['#a6e8ec', '#5bb4ba']], bands: true },
+];
+const planets = {};
+for (const d of planetDefs) {
+  const pivot = new THREE.Object3D();
+  pivot.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(pivot);
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(d.r, 48, 48),
+    new THREE.MeshStandardMaterial({ map: noiseTexture(d.tex[0], d.tex[1], d.bands), roughness: 0.9 })
+  );
+  mesh.position.x = d.orbit;
+  mesh.rotation.z = 0.2;
+  pivot.add(mesh);
+  if (d.ring) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(d.r * 1.4, d.r * 2.3, 96),
+      new THREE.MeshBasicMaterial({ color: 0xcdb98a, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
+    );
+    ring.rotation.x = Math.PI / 2.3;
+    mesh.add(ring);
+  }
+  const orbitLine = new THREE.Mesh(
+    new THREE.RingGeometry(d.orbit - 0.04, d.orbit + 0.04, 180),
+    new THREE.MeshBasicMaterial({ color: 0x3a4a80, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+  );
+  orbitLine.rotation.x = Math.PI / 2;
+  scene.add(orbitLine);
+  planets[d.name] = { def: d, pivot, mesh };
+}
+
+// moon around Earth
+const moonPivot = new THREE.Object3D();
+planets.earth.mesh.add(moonPivot);
+const moon = new THREE.Mesh(
+  new THREE.SphereGeometry(0.4, 24, 24),
+  new THREE.MeshStandardMaterial({ map: noiseTexture('#9a9a9a', ['#666', '#bbb']), roughness: 1 })
+);
+moon.position.x = 2.8;
+moonPivot.add(moon);
+
+// asteroid belt between Mars and Jupiter
+{
+  const count = 1500;
+  const geo = new THREE.IcosahedronGeometry(0.12, 0);
+  const belt = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0x8a8378, roughness: 1 }), count);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2, r = 31 + Math.random() * 5;
+    e.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    q.setFromEuler(e);
+    m.compose(new THREE.Vector3(Math.cos(a) * r, (Math.random() - 0.5) * 1.2, Math.sin(a) * r), q,
+      new THREE.Vector3().setScalar(0.5 + Math.random() * 1.8));
+    belt.setMatrixAt(i, m);
+  }
+  belt.userData.spin = true;
+  scene.add(belt);
+  planets.belt = { mesh: belt };
+}
+
+// ---------- space shuttle (nose points to +Z) ----------
+function buildShuttle() {
+  const ship = new THREE.Group();
+  const white = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5, metalness: 0.1, side: THREE.DoubleSide });
+  const black = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.8 });
+  const grey = new THREE.MeshStandardMaterial({ color: 0x777b85, roughness: 0.4, metalness: 0.7 });
+
+  // fuselage
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 2.4, 24).rotateX(Math.PI / 2), white);
+  ship.add(body);
+  // black heat-tile belly
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 2.3), black);
+  belly.position.y = -0.31;
+  ship.add(belly);
+  // nose
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.35, 24, 16), black);
+  nose.scale.set(1, 0.95, 1.7);
+  nose.position.z = 1.15;
+  ship.add(nose);
+  const noseTop = new THREE.Mesh(new THREE.SphereGeometry(0.352, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.42), white);
+  noseTop.scale.set(1, 0.95, 1.7);
+  noseTop.position.z = 1.15;
+  ship.add(noseTop);
+  // cockpit windows
+  const win = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.2), new THREE.MeshStandardMaterial({ color: 0x0a1020, metalness: 1, roughness: 0.1 }));
+  win.position.set(0, 0.3, 1.0);
+  win.rotation.x = -0.35;
+  ship.add(win);
+  // cargo bay doors line
+  const bay = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 1.3), black);
+  bay.position.set(0, 0.355, -0.1);
+  ship.add(bay);
+
+  // delta wings
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(0.3, -0.7); wingShape.lineTo(2.1, 1.1); wingShape.lineTo(2.1, 1.5); wingShape.lineTo(0.3, 1.3); wingShape.closePath();
+  const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.06, bevelEnabled: false }).rotateX(-Math.PI / 2);
+  for (const side of [1, -1]) {
+    const w = new THREE.Mesh(wingGeo, white);
+    w.scale.x = side;
+    w.position.y = -0.22;
+    ship.add(w);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.4), black);
+    tip.position.set(side * 2.1, -0.2, -1.3);
+    ship.add(tip);
+  }
+  // vertical tail
+  const tailShape = new THREE.Shape();
+  tailShape.moveTo(0.2, 0); tailShape.lineTo(1.25, 0); tailShape.lineTo(1.25, 1.0); tailShape.lineTo(1.0, 1.0); tailShape.closePath();
+  const tail = new THREE.Mesh(new THREE.ExtrudeGeometry(tailShape, { depth: 0.07, bevelEnabled: false }).translate(0, 0, -0.035).rotateY(Math.PI / 2), white);
+  tail.position.y = 0.3;
+  ship.add(tail);
+
+  // OMS pods
+  for (const s of [1, -1]) {
+    const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.7, 12).rotateX(Math.PI / 2), white);
+    pod.position.set(s * 0.2, 0.33, -1.0);
+    ship.add(pod);
+  }
+
+  // main engines + flames
+  ship.userData.flames = [];
+  const flameMat = () => new THREE.MeshBasicMaterial({ color: 0x66bbff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  [[0, 0.12], [-0.22, -0.1], [0.22, -0.1]].forEach(([x, y]) => {
+    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.19, 0.35, 16, 1, true).rotateX(Math.PI / 2), grey);
+    nozzle.position.set(x, y, -1.35);
+    ship.add(nozzle);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.15, 1.4, 12).rotateX(-Math.PI / 2).translate(0, 0, -0.7), flameMat());
+    flame.position.set(x, y, -1.5);
+    ship.add(flame);
+    const core = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.8, 10).rotateX(-Math.PI / 2).translate(0, 0, -0.4),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    core.position.copy(flame.position);
+    ship.add(core);
+    ship.userData.flames.push(flame, core);
+  });
+
+  const lamp = new THREE.PointLight(0x66bbff, 12, 12);
+  lamp.position.z = -2;
+  ship.add(lamp);
+  return ship;
+}
+const shuttle = buildShuttle();
+shuttle.scale.setScalar(0.7);
+scene.add(shuttle);
+
+// flight path: a wide loop weaving between the planets
+const path = new THREE.CatmullRomCurve3([
+  [60, 8, 10], [45, 14, -30], [20, 4, -48], [-10, -6, -34], [-30, 3, -12], [-24, 12, 16],
+  [-8, 6, 30], [14, -2, 22], [30, 10, 40], [52, 4, 38],
+].map(p => new THREE.Vector3(...p)), true, 'catmullrom', 0.5);
+
+// shuttle contrail
+const TRAIL = 120;
+const trailPos = new Float32Array(TRAIL * 3);
+const trailGeo = new THREE.BufferGeometry();
+trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.5 }));
+trail.frustumCulled = false;
+scene.add(trail);
+const trailPts = [];
+
+// ---------- camera mode ----------
+let chase = false;
+const camBtn = document.getElementById('cam');
+camBtn.addEventListener('click', () => {
+  chase = !chase;
+  controls.enabled = !chase;
+  camBtn.textContent = chase ? '카메라: 우주선 추적' : '카메라: 자유 시점';
+  if (!chase) { controls.target.set(0, 0, 0); camera.position.set(0, 45, 85); }
+});
+
+// ---------- loop ----------
+const clock = new THREE.Clock();
+const up = new THREE.Vector3(0, 1, 0);
+const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), desired = new THREE.Vector3();
+let u = 0;
+
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  sun.rotation.y += dt * 0.05;
+  glow.scale.setScalar(30 + Math.sin(t * 2) * 1.2);
+
+  for (const k in planets) {
+    const p = planets[k];
+    if (p.def) {
+      p.pivot.rotation.y += dt * p.def.speed * 0.15;
+      p.mesh.rotation.y += dt * 0.5;
+    } else p.mesh.rotation.y += dt * 0.01;
+  }
+  moonPivot.rotation.y += dt * 1.5;
+
+  // shuttle follows the path
+  u = (u + dt * 0.012) % 1;
+  path.getPointAt(u, shuttle.position);
+  path.getPointAt((u + 0.003) % 1, tmpA);
+  // bank into the turn
+  const prevQ = shuttle.quaternion.clone();
+  shuttle.up.copy(up);
+  shuttle.lookAt(tmpA);
+  const slerped = prevQ.slerp(shuttle.quaternion, 0.2);
+  shuttle.quaternion.copy(slerped);
+  shuttle.rotateZ(Math.sin(t * 0.7) * 0.15);
+
+  for (const f of shuttle.userData.flames) {
+    f.scale.set(1, 1, 0.8 + Math.random() * 0.5);
+  }
+
+  // contrail
+  trailPts.unshift(shuttle.position.clone().add(tmpB.set(0, 0, -1.6).applyQuaternion(shuttle.quaternion)));
+  if (trailPts.length > TRAIL) trailPts.pop();
+  for (let i = 0; i < TRAIL; i++) {
+    const p = trailPts[Math.min(i, trailPts.length - 1)];
+    trailPos.set([p.x, p.y, p.z], i * 3);
+  }
+  trailGeo.attributes.position.needsUpdate = true;
+
+  if (chase) {
+    desired.set(0, 1.6, -6).applyQuaternion(shuttle.quaternion).add(shuttle.position);
+    camera.position.lerp(desired, 0.08);
+    tmpB.set(0, 0, 8).applyQuaternion(shuttle.quaternion).add(shuttle.position);
+    camera.lookAt(tmpB);
+  } else {
+    controls.update();
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
