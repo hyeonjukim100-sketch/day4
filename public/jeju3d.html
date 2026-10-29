@@ -36,28 +36,35 @@
   .views button, .chipbtn { border: 1px solid #eadfca; background: #fff; color: var(--deep); border-radius: 999px; padding: 4px 11px; font: 500 12.5px 'Noto Sans KR'; cursor: pointer; }
   .views button:hover, .chipbtn:hover { background: #f4fbfd; border-color: var(--sea); }
 
-  #panel { top: 12px; right: 12px; width: 300px; max-height: calc(100% - 130px); overflow: auto; padding: 16px; z-index: 4; font-size: 14px; }
+  #panel { top: 12px; right: 12px; width: 300px; max-height: calc(100% - 150px); overflow: auto; padding: 16px; z-index: 4; font-size: 14px; }
   #panel h2 { margin: 0 0 2px; font: 400 24px 'Jua', sans-serif; color: var(--deep); }
   #panel .cat { display: inline-block; font-size: 12px; padding: 1px 10px; border-radius: 999px; color: #fff; margin-bottom: 8px; }
   #panel p { margin: 6px 0; line-height: 1.55; color: #46525e; }
   #panel .note { font-size: 11.5px; color: #8a94a0; margin-top: 10px; }
-  .rank { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-  .rank button { display: block; width: 100%; text-align: left; border: none; background: #f3f8fa; border-radius: 10px; padding: 7px 10px; cursor: pointer; font: 500 13px 'Noto Sans KR'; position: relative; overflow: hidden; }
-  .rank button i { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(31,159,181,.22); }
-  .rank button span { position: relative; display: flex; justify-content: space-between; gap: 8px; }
+  .rank { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .rank button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: #f3f8fa; border-radius: 12px; padding: 8px 10px; cursor: pointer; font: 500 14px 'Noto Sans KR'; }
   .rank button:hover { background: #e4f3f7; }
+  .rank .no { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--deep); color: #fff; font: 700 13px/26px 'Noto Sans KR'; text-align: center; }
+  .rank button:nth-child(-n+3) .no { background: var(--orange); }
+  .rank .emo { font-size: 20px; flex: none; }
+  .rank .nm { flex: 1; min-width: 0; line-height: 1.25; }
+  .rank .nm small { display: block; color: #8a94a0; font-weight: 400; font-size: 11.5px; }
+  .rank .v { flex: none; color: var(--deep); font-weight: 700; font-size: 13px; }
   .big { font: 400 30px 'Jua', sans-serif; color: var(--orange); }
   .muted { color: #7a8691; font-size: 12.5px; }
   .badge { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: #e8f4f7; color: var(--deep); }
   .badge.live { background: #ddf5e6; color: #1b8a4e; }
   svg.spark { width: 100%; height: 76px; display: block; margin-top: 6px; }
 
-  #timeline { left: 50%; bottom: 14px; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); padding: 10px 16px; z-index: 4; display: flex; align-items: center; gap: 12px; }
-  #timeline .play { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--orange); color: #fff; font-size: 16px; cursor: pointer; box-shadow: 0 3px 0 #d96d0a; flex: none; }
-  #timeline .mid { flex: 1; min-width: 0; }
+  #timeline { left: 50%; bottom: 14px; transform: translateX(-50%); width: min(760px, calc(100% - 24px)); padding: 10px 14px 12px; z-index: 4; }
   #timeline .row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
-  #monthLabel { font: 400 20px 'Jua', sans-serif; color: var(--deep); }
-  #timeline input[type=range] { width: 100%; accent-color: var(--orange); margin: 4px 0 0; }
+  #monthLabel { font: 400 18px 'Jua', sans-serif; color: var(--deep); }
+  .months { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .months button { border: 1px solid #eadfca; background: #fff; color: var(--deep); border-radius: 999px; padding: 5px 11px; font: 500 13px 'Noto Sans KR'; cursor: pointer; white-space: nowrap; }
+  .months button:hover { border-color: var(--sea); background: #f4fbfd; }
+  .months button.on { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .months button.yr { border-color: var(--deep); }
+  .months button.yr.on { background: var(--deep); border-color: var(--deep); }
 
   #loading { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: #cfe9f2; font: 400 22px 'Jua', sans-serif; color: var(--deep); transition: opacity .5s; }
   #loading.hide { opacity: 0; pointer-events: none; }
@@ -65,8 +72,9 @@
 
   @media (max-width: 760px) {
     #layers { width: 168px; font-size: 13px; padding: 9px 11px; top: 56px; }
-    #panel { top: auto; right: 8px; left: 8px; bottom: 76px; width: auto; max-height: 36%; }
+    #panel { top: auto; right: 8px; left: 8px; bottom: 100px; width: auto; max-height: 34%; }
     #timeline { bottom: 8px; }
+    .months { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
     #hint { display: none; }
   }
 </style>
@@ -75,15 +83,15 @@
 <canvas id="gl"></canvas>
 <div id="labels"></div>
 <a id="back" href="/">← 혼저옵서예 제주</a>
-<div id="hint">드래그: 회전 · 휠/핀치: 확대 · 우클릭/두 손가락: 이동 · 마커를 눌러 보세요</div>
+<div id="hint">드래그: 회전 · 휠/핀치: 확대 · 우클릭/두 손가락: 이동 · 이모지 마커를 눌러 보세요</div>
 
 <aside id="layers" class="card">
   <h3>🗺️ 레이어</h3>
-  <label><input type="checkbox" data-layer="visitor" checked><span class="dot" style="background:#1f9fb5"></span>관람객수 막대</label>
-  <label><input type="checkbox" data-layer="spot" checked><span class="dot" style="background:#d6336c"></span>관광지</label>
-  <label><input type="checkbox" data-layer="olle" checked><span class="dot" style="background:#ff8a1f"></span>올레길 (개략)</label>
-  <label><input type="checkbox" data-layer="port" checked><span class="dot" style="background:#1f6fb5"></span>항 · 포구</label>
-  <label><input type="checkbox" data-layer="orchard" checked><span class="dot" style="background:#8fb81f"></span>감귤 재배지</label>
+  <label><input type="checkbox" data-layer="visitor" checked><span class="dot" style="background:#1f9fb5"></span>💦 인기 관광지 (서귀포)</label>
+  <label><input type="checkbox" data-layer="spot" checked><span class="dot" style="background:#d6336c"></span>🏔️ 관광지</label>
+  <label><input type="checkbox" data-layer="olle" checked><span class="dot" style="background:#ff8a1f"></span>🥾 올레길 (개략)</label>
+  <label><input type="checkbox" data-layer="port" checked><span class="dot" style="background:#1f6fb5"></span>⚓ 항 · 포구</label>
+  <label><input type="checkbox" data-layer="orchard" checked><span class="dot" style="background:#8fb81f"></span>🍊 감귤 재배지</label>
   <label><input type="checkbox" id="labelsOn" checked><span class="dot" style="background:#999"></span>이름 표시</label>
   <div class="rng">지형 높이 과장 <b id="exagVal">3.0</b>배
     <input type="range" id="exag" min="1" max="6" step="0.5" value="3">
@@ -99,11 +107,8 @@
 <aside id="panel" class="card"></aside>
 
 <div id="timeline" class="card">
-  <button class="play" id="play" title="재생/정지">▶</button>
-  <div class="mid">
-    <div class="row"><span id="monthLabel">-</span><span class="muted" id="dataBadge"></span></div>
-    <input type="range" id="month" min="0" max="0" value="0">
-  </div>
+  <div class="row"><span id="monthLabel">-</span><span class="muted" id="dataBadge"></span></div>
+  <div class="months" id="months"></div>
 </div>
 
 <div id="loading">제주 지형을 만드는 중…</div>
@@ -370,48 +375,61 @@ function makeLabel(it) {
 }
 function addItem(it) { it.anchor = new THREE.Vector3(); ITEMS.push(it); makeLabel(it); return it; }
 
-const pinSphere = new THREE.SphereGeometry(0.34, 16, 12).translate(0, 1.05, 0);
-const pinCone = new THREE.ConeGeometry(0.26, 0.85, 12).rotateX(Math.PI).translate(0, 0.43, 0);
-function makePin(color) {
-  const g = new THREE.Group(), m = new THREE.MeshLambertMaterial({ color });
-  g.add(new THREE.Mesh(pinSphere, m), new THREE.Mesh(pinCone, m));
+// 이모지 마커: 둥근 흰 배경 + 이모지(캔버스) 스프라이트를 막대기 끝에 달아 지도 위에 세운다.
+const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+function emojiTex(emoji, ringColor, rank) {
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.shadowColor = 'rgba(0,0,0,.3)'; g.shadowBlur = 8; g.shadowOffsetY = 3;
+  g.beginPath(); g.arc(S / 2, S / 2 + 2, 50, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill();
+  g.shadowColor = 'transparent'; g.lineWidth = 7; g.strokeStyle = ringColor; g.stroke();
+  g.font = `64px ${EMOJI_FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#000';
+  g.fillText(emoji, S / 2, S / 2 + 6);
+  if (rank) {
+    g.beginPath(); g.arc(99, 28, 22, 0, Math.PI * 2); g.fillStyle = rank <= 3 ? '#ff8a1f' : '#0e4b63'; g.fill();
+    g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke();
+    g.fillStyle = '#fff'; g.font = 'bold 28px sans-serif'; g.fillText(String(rank), 99, 30);
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+const poleGeo = new THREE.CylinderGeometry(0.035, 0.035, 1.2, 6).translate(0, 0.6, 0);
+const shadowGeo = new THREE.CircleGeometry(0.34, 20).rotateX(-Math.PI / 2).translate(0, 0.03, 0);
+const shadowMat = new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.22, depthWrite: false });
+function bindPick(obj, it) { obj.traverse(o => { if (o.isMesh || o.isSprite) { o.userData.item = it; pickables.push(o); } }); }
+const markers = []; // 거리에 따라 크기를 조절하는 항목
+function addMarker(it, emoji, ring, parent) {
+  const g = new THREE.Group(), pole = new THREE.Mesh(poleGeo, new THREE.MeshLambertMaterial({ color: ring }));
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex(emoji, ring), transparent: true }));
+  sp.scale.set(1.7, 1.7, 1); sp.position.y = 2.0;
+  g.add(pole, new THREE.Mesh(shadowGeo, shadowMat), sp);
+  parent.add(g); bindPick(g, it);
+  it.mk = g; it.sprite = sp; it.emoji = emoji; it.ring = ring; markers.push(it);
   return g;
 }
-const portBase = new THREE.CylinderGeometry(0.4, 0.4, 0.22, 14).translate(0, 0.11, 0);
-const portMast = new THREE.ConeGeometry(0.2, 0.75, 10).translate(0, 0.6, 0);
-function makePort() {
-  const g = new THREE.Group();
-  g.add(new THREE.Mesh(portBase, new THREE.MeshLambertMaterial({ color: '#1f6fb5' })), new THREE.Mesh(portMast, new THREE.MeshLambertMaterial({ color: '#ffffff' })));
-  return g;
-}
-function bindPick(obj, it) { obj.traverse(o => { if (o.isMesh) { o.userData.item = it; pickables.push(o); } }); }
 
-const pinned = []; // 거리에 따라 크기를 조절하는 마커 [{obj, it}]
+const SPOT_EMO = { hallasan: '🏔️', seongsan: '🌅', manjang: '🦇', hyeopjae: '🏖️', seopji: '🗼', udo: '🐮', oedolgae: '🗿', gapa: '🌾', mara: '🚩' };
+const VSITE_EMO = { '천지연폭포': '💦', '정방폭포': '🌊', '천제연폭포': '💧', '중문대포 주상절리대': '🪨', '산방산_용머리': '⛰️', '감귤박물관': '🏛️' };
 for (const [id, name, lon, lat, desc] of SPOTS) {
-  const [x, z] = ll(lon, lat), it = addItem({ id, cat: 'spot', name, x, z, desc, kind: 'pin' });
-  it.obj = makePin('#d6336c'); scene.add(it.obj); bindPick(it.obj, it); pinned.push(it);
+  const [x, z] = ll(lon, lat), it = addItem({ id, cat: 'spot', name, x, z, desc, kind: 'pin', emoji: SPOT_EMO[id] });
+  it.obj = addMarker(it, SPOT_EMO[id], '#d6336c', scene);
 }
 for (const [id, name, lon, lat, desc] of PORTS) {
-  const [x, z] = ll(lon, lat), it = addItem({ id, cat: 'port', name, x, z, desc, kind: 'port' });
-  it.obj = makePort(); scene.add(it.obj); bindPick(it.obj, it); pinned.push(it);
+  const [x, z] = ll(lon, lat), it = addItem({ id, cat: 'port', name, x, z, desc, kind: 'port', emoji: id === 'jejuhang' ? '🚢' : '⚓' });
+  it.obj = addMarker(it, it.emoji, '#1f6fb5', scene);
 }
 const SITES = [];
-const barGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 22).translate(0, 0.5, 0);
-const discGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.08, 28).translate(0, 0.04, 0);
 for (const [key, name, lon, lat, color, desc] of VSITES) {
-  const [x, z] = ll(lon, lat), it = addItem({ id: key, cat: 'visitor', name, key, x, z, desc, color, val: null, h: 0.02, kind: 'bar' });
-  const g = new THREE.Group();
-  const bar = new THREE.Mesh(barGeo, new THREE.MeshLambertMaterial({ color })); bar.scale.y = 0.02;
-  g.add(bar, new THREE.Mesh(discGeo, new THREE.MeshLambertMaterial({ color: '#ffffff' })));
-  it.bar = bar; it.obj = g; scene.add(g); bindPick(g, it); SITES.push(it);
+  const [x, z] = ll(lon, lat), it = addItem({ id: key, cat: 'visitor', name, key, x, z, desc, color, m: null, y: 0, rank: 0, kind: 'site', emoji: VSITE_EMO[key] });
+  it.obj = addMarker(it, it.emoji, color, scene); SITES.push(it);
 }
-// 올레길
+// 올레길: 경로 튜브 + 출발점 이모지
 const olleItems = OLLES.map(([id, name, color, pts, desc]) => {
   const way = pts.map(p => ll(p[0], p[1]));
-  const it = addItem({ id, cat: 'olle', name, x: way[0][0], z: way[0][1], way, color, desc, kind: 'olle' });
+  const it = addItem({ id, cat: 'olle', name, x: way[0][0], z: way[0][1], way, color, desc, kind: 'olle', emoji: '🥾' });
   it.obj = new THREE.Group(); scene.add(it.obj);
-  it.start = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10), new THREE.MeshLambertMaterial({ color })); it.obj.add(it.start);
-  it.tube = null; bindPick(it.start, it);
+  addMarker(it, '🥾', color, it.obj);
+  it.tube = null;
   return it;
 });
 function buildOlle(it) {
@@ -420,14 +438,13 @@ function buildOlle(it) {
   const pts = rough.map(p => new THREE.Vector3(p.x, groundY(p.x, p.z) + 0.14, p.z));
   it.tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 260, 0.1, 5, false), new THREE.MeshLambertMaterial({ color: it.color, emissive: it.color, emissiveIntensity: 0.25 }));
   it.obj.add(it.tube); it.tube.userData.item = it; pickables.push(it.tube);
-  it.start.position.set(it.way[0][0], groundY(it.way[0][0], it.way[0][1]) + 0.3, it.way[0][1]);
-  const mid = rough[Math.floor(rough.length / 2)]; it.mx = mid.x; it.mz = mid.z;
 }
 // 감귤 재배지: 지형 색상 + 나무
 const trees = [];
 const orchardItems = ORCHARDS.map(([name, lon, lat, sig, n]) => {
   const [x, z] = ll(lon, lat);
-  const it = addItem({ id: name, cat: 'orchard', name, x, z, kind: 'orchard', desc: '' });
+  const it = addItem({ id: name, cat: 'orchard', name, x, z, kind: 'orchard', emoji: '🍊', desc: '서귀포 쪽 따뜻한 남향 사면에 감귤밭이 넓게 펼쳐져 있어요. 늦가을~겨울에 노랗게 익어요.' });
+  it.obj = addMarker(it, '🍊', '#8fb81f', scene);
   for (let c = 0, tries = 0; c < n && tries < n * 14; tries++) {
     const u = Math.max(1e-6, rng()), v = rng(), r = Math.sqrt(-2 * Math.log(u)) * sig * 0.6;
     const tx = x + r * Math.cos(2 * Math.PI * v), tz = z + r * Math.sin(2 * Math.PI * v);
@@ -466,13 +483,10 @@ function applyExag() {
   placeTrees();
   olleItems.forEach(buildOlle);
   for (const it of ITEMS) {
-    if (it.cat === 'olle') { it.gx = it.mx; it.gz = it.mz; } else { it.gx = it.x; it.gz = it.z; }
+    it.gx = it.x; it.gz = it.z;
     it.gy = groundY(it.gx, it.gz);
-    if (it.kind !== 'olle' && it.obj) it.obj.position.set(it.x, it.gy, it.z);
-    if (it.kind === 'pin') it.anchor.set(it.x, it.gy + 2.1, it.z);
-    else if (it.kind === 'port') it.anchor.set(it.x, it.gy + 1.5, it.z);
-    else if (it.kind === 'olle') it.anchor.set(it.gx, it.gy + 0.6, it.gz);
-    else if (it.kind === 'orchard') it.anchor.set(it.x, groundY(it.x, it.z) + 0.8, it.z);
+    if (it.kind === 'olle') it.mk.position.set(it.gx, it.gy, it.gz);
+    else it.obj.position.set(it.x, it.gy, it.z);
   }
 }
 
@@ -488,54 +502,62 @@ document.querySelectorAll('[data-layer]').forEach(cb => cb.addEventListener('cha
 $('#labelsOn').addEventListener('change', e => { labelsOn = e.target.checked; });
 $('#exag').addEventListener('input', e => { exag = +e.target.value; $('#exagVal').textContent = exag.toFixed(1); applyExag(); });
 
-/* 시간(월) 슬라이더 + 막대 */
-let rows = [], maxV = 1, mIdx = 0, live = false, playing = null;
-const BAR_MAX = 9;
-function monthLabel(r) { return `${r.기준연도}년 ${r.기준월}월`; }
-function setMonth(i) {
-  mIdx = clamp(i, 0, rows.length - 1);
-  const r = rows[mIdx];
-  $('#month').value = mIdx; $('#monthLabel').textContent = monthLabel(r);
-  for (const s of SITES) { s.val = getVal(r, s.key); s._w = 0; }
+/* 월 선택 + 최근 1년 순위 */
+let rows = [], recent = [], base = 0, mode = 'year', live = false; // mode: 'year'(최근 1년 합계) 또는 rows 인덱스
+const monthLabel = r => `${r.기준연도}년 ${r.기준월}월`;
+const periodLabel = () => mode === 'year' ? `최근 1년 (${monthLabel(recent[0])} ~ ${monthLabel(recent[recent.length - 1])})` : monthLabel(rows[mode]);
+const statOf = s => mode === 'year' ? s.y : s.m;
+const shortNum = n => n == null ? '–' : n >= 10000 ? (n / 10000).toFixed(n >= 1e6 ? 0 : 1).replace(/\.0$/, '') + '만' : n.toLocaleString('ko-KR');
+function setMode(m) {
+  mode = m;
+  for (const s of SITES) s.m = m === 'year' ? null : getVal(rows[m], s.key);
+  [...SITES].sort((a, b) => (statOf(b) ?? -1) - (statOf(a) ?? -1)).forEach((s, i) => { s.rank = statOf(s) == null ? 0 : i + 1; });
+  for (const s of SITES) {
+    s.sprite.material.map.dispose(); s.sprite.material.map = emojiTex(s.emoji, s.ring, s.rank); s.sprite.material.needsUpdate = true;
+    const t = `${s.name}<b>${shortNum(statOf(s))}</b>`;
+    if (s._t !== t) { s._t = t; s.el.innerHTML = t; s._w = 0; }
+  }
+  $('#monthLabel').textContent = m === 'year' ? '최근 1년' : monthLabel(rows[m]);
+  document.querySelectorAll('#months button').forEach(b => b.classList.toggle('on', b.dataset.m === String(m)));
   renderPanel();
 }
-$('#month').addEventListener('input', e => { stopPlay(); setMonth(+e.target.value); });
-function stopPlay() { if (playing) { clearInterval(playing); playing = null; } $('#play').textContent = '▶'; }
-$('#play').addEventListener('click', () => {
-  if (playing) return stopPlay();
-  if (mIdx >= rows.length - 1) setMonth(0);
-  $('#play').textContent = '❚❚';
-  playing = setInterval(() => { if (mIdx >= rows.length - 1) return stopPlay(); setMonth(mIdx + 1); }, 900);
+function buildMonthChips() {
+  $('#months').innerHTML = `<button class="yr" data-m="year">최근 1년</button>` +
+    recent.map((r, i) => `<button data-m="${base + i}" title="${monthLabel(r)}">${String(r.기준연도).slice(2)}.${r.기준월}</button>`).join('');
+}
+$('#months').addEventListener('click', e => {
+  const m = e.target.dataset.m; if (m == null) return;
+  setMode(m === 'year' ? 'year' : +m);
 });
 
 /* 패널 */
 function sparkline(s) {
-  const vals = rows.map(r => getVal(r, s.key)), mx = Math.max(...vals.filter(v => v != null), 1), W = 268, H = 70, n = vals.length;
+  const vals = recent.map(r => getVal(r, s.key)), mx = Math.max(...vals.filter(v => v != null), 1), W = 268, H = 70, n = vals.length;
   const X = i => 6 + i * (W - 12) / Math.max(1, n - 1), Y = v => H - 8 - (v / mx) * (H - 18);
   const line = vals.map((v, i) => v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(' ');
-  const cv = vals[mIdx];
+  const ci = mode === 'year' ? -1 : mode - base, cv = vals[ci];
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${line}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` +
-    (cv != null ? `<circle cx="${X(mIdx)}" cy="${Y(cv)}" r="4.5" fill="#fff" stroke="${s.color}" stroke-width="2.5"/>` : '') + `</svg>`;
+    (cv != null ? `<circle cx="${X(ci)}" cy="${Y(cv)}" r="4.5" fill="#fff" stroke="${s.color}" stroke-width="2.5"/>` : '') + `</svg>`;
 }
 function renderPanel() {
   const p = $('#panel'), it = selected;
+  if (!recent.length) return;
   if (it && it.cat === 'visitor') {
-    const rank = [...SITES].sort((a, b) => (b.val ?? -1) - (a.val ?? -1)).indexOf(it) + 1;
-    p.innerHTML = `<button class="chipbtn" id="pBack">← 이 달의 순위</button><h2 style="margin-top:8px">${it.name}</h2><span class="cat" style="background:${it.color}">${CAT.visitor[0]}</span>
-      <div class="muted">${monthLabel(rows[mIdx])}</div><div class="big">${fmt(it.val)}</div><div class="muted">6곳 중 ${it.val == null ? '-' : rank + '위'}</div>
-      ${sparkline(it)}<div class="muted">월별 관람객 추이 (${rows.length}개월)</div><p>${it.desc}</p>
+    p.innerHTML = `<button class="chipbtn" id="pBack">← 인기 관광지 순위</button><h2 style="margin-top:8px">${it.emoji} ${it.name}</h2><span class="cat" style="background:${it.color}">${CAT.visitor[0]}</span>
+      <div class="muted">${periodLabel()}</div><div class="big">${fmt(statOf(it))}</div><div class="muted">6곳 중 ${it.rank ? it.rank + '위' : '-'}${mode === 'year' ? '' : ` · 최근 1년 ${fmt(it.y)}`}</div>
+      ${sparkline(it)}<div class="muted">최근 1년 월별 추이</div><p>${it.desc}</p>
       <div class="note">위치는 개략적인 값입니다. 관람객수는 서귀포시 직영관광지 통계(공공데이터포털)입니다.</div>`;
   } else if (it) {
     const c = CAT[it.cat];
-    p.innerHTML = `<button class="chipbtn" id="pBack">← 이 달의 순위</button><h2 style="margin-top:8px">${it.name}</h2><span class="cat" style="background:${c[1]}">${c[0]}</span><p>${it.desc}</p>
+    p.innerHTML = `<button class="chipbtn" id="pBack">← 인기 관광지 순위</button><h2 style="margin-top:8px">${it.emoji} ${it.name}</h2><span class="cat" style="background:${c[1]}">${c[0]}</span><p>${it.desc}</p>
       <div class="note">위치${it.cat === 'olle' ? '·경로' : ''}는 개략적인 참고용 값으로 실제와 다를 수 있어요.</div>`;
   } else {
-    const sorted = [...SITES].sort((a, b) => (b.val ?? -1) - (a.val ?? -1)), top = Math.max(1, ...SITES.map(s => s.val || 0));
-    const total = SITES.reduce((a, s) => a + (s.val || 0), 0);
-    p.innerHTML = `<h2>제주 3D 탐험 지도</h2><span class="badge ${live ? 'live' : ''}">${live ? '● 실시간 API 데이터' : '샘플 데이터 (API 미연결)'}</span>
-      <p class="muted" style="margin-top:10px">${monthLabel(rows[mIdx])} · 서귀포 직영관광지 6곳 합계</p><div class="big">${fmt(total)}</div>
-      <div class="rank">${sorted.map((s, i) => `<button data-id="${s.id}"><i style="width:${(s.val || 0) / top * 100}%;background:${s.color}33"></i><span><b>${i + 1}. ${s.name}</b><span>${fmt(s.val)}</span></span></button>`).join('')}</div>
-      <div class="note">지도 위 마커나 막대를 누르면 자세한 정보를 볼 수 있어요. 지형·위치는 개략적인 예시이며 실제와 다를 수 있어요.</div>`;
+    const sorted = [...SITES].sort((a, b) => (statOf(b) ?? -1) - (statOf(a) ?? -1));
+    const total = SITES.reduce((a, s) => a + (statOf(s) || 0), 0);
+    p.innerHTML = `<h2>🏆 인기 관광지 순위</h2><span class="badge ${live ? 'live' : ''}">${live ? '● 실시간 API 데이터' : '샘플 데이터 (API 미연결)'}</span>
+      <p class="muted" style="margin:10px 0 0">${periodLabel()}<br>서귀포 직영관광지 6곳 · 합계 <b>${fmt(total)}</b></p>
+      <div class="rank">${sorted.map((s, i) => `<button data-id="${s.id}"><span class="no">${i + 1}</span><span class="emo">${s.emoji}</span><span class="nm">${s.name}${mode === 'year' ? '' : `<small>최근 1년 ${fmt(s.y)}</small>`}</span><span class="v">${fmt(statOf(s))}</span></button>`).join('')}</div>
+      <div class="note">아래에서 월을 눌러 바꿔 보고, 순위나 지도 위 이모지를 누르면 자세히 볼 수 있어요. 지형·위치는 개략적인 예시이며 실제와 다를 수 있어요.</div>`;
   }
   const b = $('#pBack'); if (b) b.onclick = () => select(null);
   p.querySelectorAll('.rank button').forEach(btn => btn.onclick = () => select(ITEMS.find(i => i.id === btn.dataset.id), true));
@@ -608,12 +630,6 @@ function updateLabels() {
     el.classList.toggle('sel', it === selected);
   }
 }
-function refreshVisitorLabels() {
-  for (const s of SITES) {
-    const t = `${s.name}<b>${s.val == null ? '–' : s.val.toLocaleString('ko-KR')}</b>`;
-    if (s._t !== t) { s._t = t; s.el.innerHTML = t; s._w = 0; }
-  }
-}
 
 /* ======================= 루프 ======================= */
 function resize() {
@@ -629,18 +645,15 @@ function frame(now) {
     if (k >= 1) tween = null;
   }
   controls.update();
-  for (const s of SITES) {
-    const target = s.val == null ? 0 : s.val / maxV * BAR_MAX;
-    s.h += (target - s.h) * Math.min(1, dt * 6);
-    s.bar.scale.y = Math.max(0.02, s.h);
-    s.anchor.set(s.x, s.gy + s.h + 0.7, s.z);
+  for (const it of markers) {
+    const s = clamp(camera.position.distanceTo(it.mk.position) / 52, 0.45, 2.2);
+    it.mk.scale.setScalar(s);
+    it.anchor.set(it.mk.position.x, it.mk.position.y + 3.0 * s, it.mk.position.z);
   }
-  for (const it of pinned) it.obj.scale.setScalar(clamp(camera.position.distanceTo(it.obj.position) / 55, 0.45, 2.2));
   if (selected) {
     ring.position.set(selected.gx ?? selected.x, (selected.gy ?? 0) + 0.06, selected.gz ?? selected.z);
     ring.scale.setScalar(clamp(camera.position.distanceTo(ring.position) / 40, 0.5, 2.5) * (selected.cat === 'visitor' ? 1.15 : 0.9) * (1 + Math.sin(now / 250) * 0.05));
   }
-  refreshVisitorLabels();
   updateLabels();
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -663,11 +676,11 @@ viewAll(); camera.position.copy(tween.p1); controls.target.copy(tween.t1); tween
   const d = await loadVisitors();
   live = d.live;
   rows = d.rows.slice().sort((a, b) => (a.기준연도 - b.기준연도) || (a.기준월 - b.기준월));
-  maxV = Math.max(1, ...rows.flatMap(r => SITES.map(s => getVal(r, s.key) || 0)));
-  $('#month').max = rows.length - 1;
+  recent = rows.slice(-12); base = rows.length - recent.length;
+  for (const s of SITES) s.y = recent.reduce((a, r) => a + (getVal(r, s.key) || 0), 0);
   $('#dataBadge').textContent = live ? '실시간 API' : '샘플 데이터';
-  setMonth(rows.length - 1);
-  SITES.forEach(s => { s.h = 0.02; });
+  buildMonthChips();
+  setMode('year');
   select(null);
   requestAnimationFrame(frame);
   setTimeout(() => $('#loading').classList.add('hide'), 100);
