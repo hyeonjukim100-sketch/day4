@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jeju Island Keyframes</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #bfe3dd; overflow: hidden; font-family: system-ui, "Malgun Gothic", sans-serif; }
+  canvas { display: block; }
+  #title { position: fixed; left: 18px; top: 14px; color: #12385a; pointer-events: none; text-shadow: 0 1px 6px rgba(255,255,255,.6); }
+  #title h1 { margin: 0; font-size: 26px; }
+  #title p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
+  #ui { position: fixed; left: 16px; bottom: 14px; display: flex; gap: 8px; align-items: center; color: #234; font-size: 13px; flex-wrap: wrap; }
+  button { background: rgba(255,255,255,.85); color: #12385a; border: 1px solid #8db7c9; border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  button:hover { background: #fff; }
+  #msg { position: fixed; inset: 0; display: grid; place-items: center; color: #12385a; font-size: 16px; text-align: center; padding: 24px; }
+</style>
+</head>
+<body>
+<div id="title">
+  <h1>제주도 <small style="font-size:14px;font-weight:400">Jeju Island</small></h1>
+  <p>실제 고도 데이터(DEM)로 만든 지형 위를 여객선 · 비행기 · 갈매기 · 구름이 키프레임 애니메이션으로 움직입니다</p>
+</div>
+<div id="ui">
+  <button onclick="location.href='index.html'">← 돌아가기</button>
+  <button id="cam">카메라: 자유 시점</button>
+  <span>드래그: 회전 · 휠: 확대/축소</span>
+</div>
+<div id="msg">지형 데이터 불러오는 중…</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// ---------- renderer / scene (same setup style as the three.js keyframes example) ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xbfe3dd);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+scene.fog = new THREE.Fog(0xbfe3dd, 90, 260);
+scene.environmentIntensity = 0.6;
+
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 500);
+camera.position.set(0, 42, 62);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.5, 0);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI / 2 - 0.05;
+controls.maxDistance = 160;
+controls.update();
+
+const sunLight = new THREE.DirectionalLight(0xfff2d8, 2.4);
+sunLight.position.set(-30, 50, 20);
+scene.add(sunLight);
+
+// ---------- geo helpers ----------
+const LON_W = 126.05, LON_E = 127.00, LAT_S = 33.05, LAT_N = 33.65;
+const lonC = 126.5, latC = 33.35;
+const KX = 111.32 * Math.cos(latC * Math.PI / 180), KZ = 110.95;   // km per degree -> 1 world unit = 1 km
+const wx = lon => (lon - lonC) * KX;
+const wz = lat => -(lat - latC) * KZ;
+const EXAG = 2.5;                                                   // vertical exaggeration of land
+const hToY = h => h >= 0 ? h / 1000 * EXAG : Math.max(h, -200) / 1000 * 3;
+
+// ---------- load DEM tiles (AWS Terrarium, z=11) ----------
+const Z = 11, X0 = 1741, X1 = 1746, Y0 = 820, Y1 = 823;
+async function loadDEM() {
+  const W = (X1 - X0 + 1) * 256, H = (Y1 - Y0 + 1) * 256;
+  const dem = new Float32Array(W * H);
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const jobs = [];
+  for (let ty = Y0; ty <= Y1; ty++) for (let tx = X0; tx <= X1; tx++) {
+    jobs.push(new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res({ tx, ty, im });
+      im.onerror = () => rej(new Error('tile load failed'));
+      im.src = `blender/dem/tiles/z${Z}_${tx}_${ty}.png`;
+    }));
+  }
+  for (const { tx, ty, im } of await Promise.all(jobs)) {
+    g.clearRect(0, 0, 256, 256);
+    g.drawImage(im, 0, 0);
+    const d = g.getImageData(0, 0, 256, 256).data;   // throws if the page is opened via file://
+    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+      const k = (y * 256 + x) * 4;
+      dem[((ty - Y0) * 256 + y) * W + (tx - X0) * 256 + x] = d[k] * 256 + d[k + 1] + d[k + 2] / 256 - 32768;
+    }
+  }
+  return { dem, W, H };
+}
+
+function sampler({ dem, W, H }) {
+  const n = 2 ** Z * 256;
+  return (lon, lat) => {
+    const s = Math.sin(lat * Math.PI / 180);
+    const px = (lon + 180) / 360 * n - X0 * 256;
+    const py = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n - Y0 * 256;
+    const x = Math.min(W - 2, Math.max(0, px)), y = Math.min(H - 2, Math.max(0, py));
+    const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
+    const a = dem[yi * W + xi], b = dem[yi * W + xi + 1], c = dem[(yi + 1) * W + xi], d = dem[(yi + 1) * W + xi + 1];
+    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+  };
+}
+
+// ---------- terrain ----------
+const NX = 320, NZ = 240;
+const X_MIN = wx(LON_W), X_W = wx(LON_E) - X_MIN, Z_MIN = wz(LAT_N), Z_H = wz(LAT_S) - Z_MIN;
+const heightY = new Float32Array(NX * NZ);
+const heightAt = (x, z) => {
+  const i = Math.round((x - X_MIN) / X_W * (NX - 1)), j = Math.round((z - Z_MIN) / Z_H * (NZ - 1));
+  return i < 0 || j < 0 || i >= NX || j >= NZ ? -1 : heightY[j * NX + i];
+};
+
+function buildTerrain(sample) {
+  const pos = new Float32Array(NX * NZ * 3), col = new Float32Array(NX * NZ * 3);
+  const idx = [];
+  const cShallow = new THREE.Color(0x4fd0c4), cDeep = new THREE.Color(0x0b2f5c);
+  const stops = [[0, 0xd9c9a0], [12, 0x7fae56], [300, 0x5f9a45], [800, 0x3f7a35], [1400, 0x6b6a45], [1950, 0x8a7a68]]
+    .map(([h, c]) => [h, new THREE.Color(c)]);
+  const tmp = new THREE.Color();
+  // The DEM has no bathymetry (sea = 0 m), so fake a seabed that deepens with distance from the coast
+  const hs = new Float32Array(NX * NZ);
+  let mask = new Float32Array(NX * NZ);
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+    const lon = LON_W + (LON_E - LON_W) * i / (NX - 1), lat = LAT_N - (LAT_N - LAT_S) * j / (NZ - 1);
+    const k = j * NX + i;
+    hs[k] = sample(lon, lat);
+    mask[k] = hs[k] > 0.5 ? 1 : 0;
+  }
+  const R = 7;
+  for (let pass = 0; pass < 2; pass++) {
+    const tmpA = new Float32Array(NX * NZ), tmpB = new Float32Array(NX * NZ);
+    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+      let s = 0; for (let d = -R; d <= R; d++) s += mask[j * NX + Math.min(NX - 1, Math.max(0, i + d))];
+      tmpA[j * NX + i] = s / (2 * R + 1);
+    }
+    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+      let s = 0; for (let d = -R; d <= R; d++) s += tmpA[Math.min(NZ - 1, Math.max(0, j + d)) * NX + i];
+      tmpB[j * NX + i] = s / (2 * R + 1);
+    }
+    mask = tmpB;
+  }
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+    const lon = LON_W + (LON_E - LON_W) * i / (NX - 1), lat = LAT_N - (LAT_N - LAT_S) * j / (NZ - 1);
+    const k = j * NX + i, land = hs[k] > 0.5;
+    const depth = 0.05 + 0.5 * (1 - Math.min(1, mask[k] * 2.2));   // world units below sea level
+    const h = land ? hs[k] : -1, y = land ? hToY(hs[k]) : -depth;
+    heightY[k] = y;
+    pos.set([wx(lon), y, wz(lat)], k * 3);
+    if (!land) {
+      tmp.copy(cShallow).lerp(cDeep, Math.min(1, (depth - 0.05) / 0.45));
+    } else {
+      let s = 0; while (s < stops.length - 2 && h > stops[s + 1][0]) s++;
+      const [h0, c0] = stops[s], [h1, c1] = stops[s + 1];
+      tmp.copy(c0).lerp(c1, Math.min(1, Math.max(0, (h - h0) / (h1 - h0))));
+    }
+    const jit = (Math.sin(i * 12.9898 + j * 78.233) * 43758.5453 % 1) * 0.05;
+    col.set([tmp.r + jit, tmp.g + jit, tmp.b + jit], k * 3);
+  }
+  for (let j = 0; j < NZ - 1; j++) for (let i = 0; i < NX - 1; i++) {
+    const a = j * NX + i, b = a + 1, c = a + NX, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }));
+  scene.add(mesh);
+
+  // sea surface with gentle waves
+  const seaGeo = new THREE.PlaneGeometry(X_W, Z_H, 110, 80).rotateX(-Math.PI / 2);
+  const sea = new THREE.Mesh(seaGeo, new THREE.MeshPhysicalMaterial({
+    color: 0x2f9fe0, transparent: true, opacity: 0.6, roughness: 0.15, metalness: 0.1, clearcoat: 1
+  }));
+  sea.position.set(X_MIN + X_W / 2, 0, Z_MIN + Z_H / 2);
+  scene.add(sea);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(X_W + 2, 0.4, Z_H + 2), new THREE.MeshStandardMaterial({ color: 0x0b2f5c }));
+  base.position.set(sea.position.x, -0.85, sea.position.z);
+  scene.add(base);
+  return sea;
+}
+
+// ---------- labels ----------
+function label(text, lon, lat, lift = 0.6, scale = 1) {
+  const c = document.createElement('canvas'); c.width = 320; c.height = 80;
+  const g = c.getContext('2d');
+  g.font = '600 34px "Malgun Gothic", system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 7; g.strokeStyle = 'rgba(255,255,255,.9)'; g.strokeText(text, 160, 40);
+  g.fillStyle = '#12385a'; g.fillText(text, 160, 40);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
+  const x = wx(lon), z = wz(lat);
+  s.position.set(x, Math.max(heightAt(x, z), 0) + lift, z);
+  s.scale.set(5 * scale, 1.25 * scale, 1);
+  s.renderOrder = 10;
+  scene.add(s);
+}
+
+// ---------- keyframe helpers ----------
+const mixers = [];
+const upV = new THREE.Vector3(0, 1, 0);
+
+// Samples a curve into position + quaternion KeyframeTracks (nose points along +Z)
+function pathClip(curve, duration, steps = 160) {
+  const times = [], pos = [], quat = [];
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), prev = new THREE.Quaternion();
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps;
+    const p = curve.getPointAt(u), tan = curve.getTangentAt(Math.min(u, 0.9999));
+    m.lookAt(p.clone().add(tan), p, upV);
+    q.setFromRotationMatrix(m);
+    if (i > 0 && q.dot(prev) < 0) q.set(-q.x, -q.y, -q.z, -q.w);
+    prev.copy(q);
+    times.push(u * duration);
+    pos.push(p.x, p.y, p.z);
+    quat.push(q.x, q.y, q.z, q.w);
+  }
+  return new THREE.AnimationClip('path', duration, [
+    new THREE.VectorKeyframeTrack('.position', times, pos),
+    new THREE.QuaternionKeyframeTrack('.quaternion', times, quat),
+  ]);
+}
+function play(obj, clip, offset = 0) {
+  const mixer = new THREE.AnimationMixer(obj);
+  const action = mixer.clipAction(clip);
+  action.play();
+  action.time = offset;
+  mixers.push(mixer);
+  return mixer;
+}
+const loop = (pts, tension = 0.5) => new THREE.CatmullRomCurve3(pts, true, 'catmullrom', tension);
+const geo3 = (lat, lon, y) => new THREE.Vector3(wx(lon), y, wz(lat));
+
+// ---------- models ----------
+const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, ...extra });
+
+function makeBoat(hullColor, scale = 1) {
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 1.3), mat(hullColor));
+  hull.position.y = 0.1;
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.55, 4).rotateX(Math.PI / 2).rotateZ(Math.PI / 4), mat(hullColor));
+  bow.position.set(0, 0.1, 0.9); bow.scale.set(0.72, 0.55, 1);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.7), mat(0xffffff));
+  deck.position.set(0, 0.31, -0.1);
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.16, 0.3), mat(0xffffff));
+  bridge.position.set(0, 0.5, 0.05);
+  const funnel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.2, 10), mat(0xe63946));
+  funnel.position.set(0, 0.55, -0.35);
+  g.add(hull, bow, deck, bridge, funnel);
+  g.scale.setScalar(scale);
+  return g;
+}
+
+function makePlane() {
+  const g = new THREE.Group();
+  const white = mat(0xffffff, { roughness: 0.4, metalness: 0.2 });
+  const orange = mat(0xff6a1a);
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.1, 14).rotateX(Math.PI / 2), white));
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.25, 14).rotateX(Math.PI / 2), white);
+  nose.position.z = 0.67; g.add(nose);
+  const tailCone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 14).rotateX(-Math.PI / 2), white);
+  tailCone.position.z = -0.7; g.add(tailCone);
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(0, 0.2); wingShape.lineTo(0.75, -0.2); wingShape.lineTo(0.75, -0.3); wingShape.lineTo(0, -0.1); wingShape.closePath();
+  const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.02, bevelEnabled: false }).rotateX(Math.PI / 2);
+  for (const s of [1, -1]) {
+    const w = new THREE.Mesh(wingGeo, orange); w.scale.x = s; w.material.side = THREE.DoubleSide; w.position.set(0, -0.02, 0.05); g.add(w);
+    const e = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.2, 10).rotateX(Math.PI / 2), mat(0x888888)); e.position.set(s * 0.3, -0.1, 0.0); g.add(e);
+    const st = new THREE.Mesh(wingGeo, orange); st.scale.set(s * 0.35, 1, 0.5); st.position.set(0, 0.0, -0.62); st.material.side = THREE.DoubleSide; g.add(st);
+  }
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.3, 0.25), orange);
+  fin.position.set(0, 0.2, -0.62); fin.rotation.x = -0.35; g.add(fin);
+  return g;
+}
+
+function makeGull() {
+  const g = new THREE.Group();
+  const white = mat(0xffffff, { side: THREE.DoubleSide });
+  g.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.12, 4, 8).rotateX(Math.PI / 2), white));
+  for (const [name, s] of [['wingL', 1], ['wingR', -1]]) {
+    const pivot = new THREE.Group(); pivot.name = name; pivot.position.x = s * 0.03;
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.008, 0.07), white);
+    w.position.x = s * 0.11; pivot.add(w); g.add(pivot);
+  }
+  return g;
+}
+const flapClip = new THREE.AnimationClip('flap', 0.8, [
+  new THREE.NumberKeyframeTrack('wingL.rotation[z]', [0, 0.4, 0.8], [0.5, -0.5, 0.5]),
+  new THREE.NumberKeyframeTrack('wingR.rotation[z]', [0, 0.4, 0.8], [-0.5, 0.5, -0.5]),
+]);
+
+function makeTurbine(scale = 1) {
+  const g = new THREE.Group();
+  const white = mat(0xf4f6f8);
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.03, 0.9, 8), white);
+  tower.position.y = 0.45; g.add(tower);
+  const hub = new THREE.Group(); hub.name = 'rotor'; hub.position.set(0, 0.9, 0.04);
+  for (let i = 0; i < 3; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.4, 0.006), white);
+    b.position.y = 0.2;
+    const arm = new THREE.Group(); arm.rotation.z = i * Math.PI * 2 / 3; arm.add(b); hub.add(arm);
+  }
+  g.add(hub);
+  g.scale.setScalar(scale);
+  return g;
+}
+const spinClip = new THREE.AnimationClip('spin', 3, [
+  new THREE.NumberKeyframeTrack('rotor.rotation[z]', [0, 3], [0, Math.PI * 2]),
+]);
+
+function makeCloud() {
+  const g = new THREE.Group();
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.92 });
+  for (let i = 0; i < 6; i++) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.8 + Math.random() * 0.9, 14, 10), m);
+    s.position.set((Math.random() - 0.5) * 2.8, (Math.random() - 0.3) * 0.5, (Math.random() - 0.5) * 1.6);
+    s.scale.y = 0.55;
+    g.add(s);
+  }
+  return g;
+}
+
+// ---------- main ----------
+const msg = document.getElementById('msg');
+let sea;
+const followTargets = [];
+
+try {
+  const demData = await loadDEM();
+  sea = buildTerrain(sampler(demData));
+} catch (e) {
+  console.error(e);
+  msg.innerHTML = '지형 타일을 읽지 못했습니다.<br>파일을 더블클릭하지 말고 로컬 서버(예: <code>npx serve</code>)나 GitHub Pages로 열어 주세요.';
+  throw e;
+}
+msg.remove();
+
+// labels
+label('한라산 1,947m', 126.5292, 33.3617, 1.0, 1.2);
+label('성산일출봉', 126.9425, 33.4581, 0.8);
+label('제주공항', 126.4930, 33.5113, 0.9);
+label('우도', 126.9500, 33.5000, 0.8, 0.8);
+label('마라도', 126.2670, 33.1167, 0.8, 0.8);
+label('협재 · 비양도', 126.2380, 33.3940, 0.8, 0.8);
+
+// ferry lanes along the north coast
+const ferry = makeBoat(0x1d4e89, 1.6);
+scene.add(ferry);
+play(ferry, pathClip(loop([
+  geo3(33.600, 126.30, 0.05), geo3(33.600, 126.50, 0.05), geo3(33.595, 126.72, 0.05), geo3(33.585, 126.86, 0.05),
+  geo3(33.625, 126.84, 0.05), geo3(33.640, 126.68, 0.05), geo3(33.635, 126.46, 0.05), geo3(33.625, 126.30, 0.05),
+]), 70));
+followTargets.push({ name: '여객선', obj: ferry, back: new THREE.Vector3(0, 2.2, -4.5), look: new THREE.Vector3(0, 0, 6) });
+
+// fishing boats circling Marado and Biyangdo
+const fishers = [[33.117, 126.267, 0.05, 40, 0xe63946], [33.394, 126.238, 0.06, 32, 0xf4a261]];
+for (const [lat, lon, r, dur, color] of fishers) {
+  const b = makeBoat(color, 1.1);
+  scene.add(b);
+  const pts = Array.from({ length: 10 }, (_, i) => {
+    const a = i / 10 * Math.PI * 2;
+    return geo3(lat + Math.sin(a) * r * 0.8, lon + Math.cos(a) * r, 0.05);
+  });
+  play(b, pathClip(loop(pts), dur));
+}
+
+// airliner departing and returning to Jeju airport
+const plane = makePlane();
+plane.scale.setScalar(1.8);
+scene.add(plane);
+play(plane, pathClip(loop([
+  geo3(33.505, 126.465, 0.2), geo3(33.540, 126.385, 1.4), geo3(33.610, 126.290, 2.8), geo3(33.615, 126.140, 3.4),
+  geo3(33.540, 126.085, 3.6), geo3(33.480, 126.160, 3.2), geo3(33.500, 126.300, 2.0), geo3(33.510, 126.410, 0.8),
+], 0.5), 45));
+followTargets.push({ name: '비행기', obj: plane, back: new THREE.Vector3(0, 0.9, -3), look: new THREE.Vector3(0, 0, 5) });
+
+// seagulls circling the east coast and Seongsan
+for (let i = 0; i < 6; i++) {
+  const gull = makeGull();
+  gull.scale.setScalar(1.8);
+  scene.add(gull);
+  const cLat = 33.46 + (i % 3) * 0.04, cLon = 126.90 + (i % 2) * 0.03, r = 0.06 + (i % 3) * 0.02;
+  const pts = Array.from({ length: 10 }, (_, k) => {
+    const a = k / 10 * Math.PI * 2;
+    return geo3(cLat + Math.sin(a) * r, cLon + Math.cos(a) * r, 1.0 + (i % 3) * 0.35 + Math.sin(a * 2) * 0.15);
+  });
+  const mixer = play(gull, pathClip(loop(pts), 14 + i * 2), i * 3);
+  mixer.clipAction(flapClip).play().time = Math.random();
+}
+
+// clouds drifting around Hallasan
+const hallasan = new THREE.Vector3(wx(126.5292), 0, wz(33.3617));
+for (let i = 0; i < 7; i++) {
+  const cloud = makeCloud();
+  scene.add(cloud);
+  const r = 7 + (i % 4) * 4, y = 6.5 + (i % 3) * 0.9, dir = i % 2 ? 1 : -1;
+  const pts = Array.from({ length: 12 }, (_, k) => {
+    const a = dir * k / 12 * Math.PI * 2 + i;
+    return new THREE.Vector3(hallasan.x + Math.cos(a) * r * 1.3, y + Math.sin(a * 3) * 0.2, hallasan.z + Math.sin(a) * r);
+  });
+  play(cloud, pathClip(loop(pts), 90 + i * 10), i * 7);
+}
+
+// wind turbines on the west and east coasts
+const turbineSpots = [
+  [33.335, 126.170], [33.345, 126.178], [33.355, 126.185], [33.325, 126.165], [33.315, 126.172],
+  [33.520, 126.855], [33.530, 126.865], [33.510, 126.850], [33.540, 126.875],
+  [33.470, 126.320], [33.230, 126.230], [33.240, 126.245],
+];
+for (const [lat, lon] of turbineSpots) {
+  const x = wx(lon), z = wz(lat), y = heightAt(x, z);
+  if (y < 0.02) continue;
+  const t = makeTurbine(1.4);
+  t.position.set(x, y, z);
+  t.rotation.y = -0.6;
+  scene.add(t);
+  play(t, spinClip, Math.random() * 3);
+}
+
+// ---------- camera modes ----------
+let mode = -1;
+const camBtn = document.getElementById('cam');
+camBtn.addEventListener('click', () => {
+  mode = mode + 1 >= followTargets.length ? -1 : mode + 1;
+  controls.enabled = mode < 0;
+  camBtn.textContent = '카메라: ' + (mode < 0 ? '자유 시점' : followTargets[mode].name + ' 추적');
+  if (mode < 0) { camera.position.set(0, 42, 62); controls.target.set(0, 0.5, 0); }
+});
+
+// ---------- loop ----------
+const clock = new THREE.Clock();
+const desired = new THREE.Vector3(), look = new THREE.Vector3();
+const seaPos = sea.geometry.attributes.position;
+const seaBase = seaPos.array.slice();
+
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  for (const m of mixers) m.update(dt);
+
+  for (let i = 0; i < seaPos.count; i++) {
+    const x = seaBase[i * 3], z = seaBase[i * 3 + 2];
+    seaPos.array[i * 3 + 1] = Math.sin(x * 0.9 + t * 1.2) * 0.02 + Math.cos(z * 0.7 + t * 1.6) * 0.02;
+  }
+  seaPos.needsUpdate = true;
+
+  if (mode >= 0) {
+    const f = followTargets[mode];
+    desired.copy(f.back).applyQuaternion(f.obj.quaternion).add(f.obj.position);
+    camera.position.lerp(desired, 0.06);
+    look.copy(f.look).applyQuaternion(f.obj.quaternion).add(f.obj.position);
+    camera.lookAt(look);
+  } else {
+    controls.update();
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
