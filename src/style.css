@@ -82,6 +82,8 @@ h2 { font-size: 34px; margin: 0; color: var(--deep); }
 .cart-total b { color: var(--orange); font-size: 22px; }
 .hint { text-align: center; font-size: 12px; color: #8a94a0; margin: 10px 0 0; }
 
+.map3d { display: block; width: 100%; height: min(78vh, 640px); margin-top: 14px; border: 0; border-radius: var(--radius); box-shadow: 0 6px 18px rgba(14,75,99,.18); background: #cfe9f2; }
+
 .about { text-align: center; }
 .about-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; margin-top: 24px; }
 .about-grid > div { background: #fff; border-radius: var(--radius); padding: 24px; box-shadow: 0 6px 18px rgba(14,75,99,.08); }

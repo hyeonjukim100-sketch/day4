@@ -51,7 +51,7 @@ $('#app').innerHTML = `
     <nav>
       <a href="#spots">명소</a>
       <a href="#shop">기념품</a>
-      <a href="/jeju3d.html">3D 지도</a>
+      <a href="#map3d">3D 지도</a>
       <a href="#about">제주 이야기</a>
       <a href="/previous.html">🎮 이전 작품</a>
     </nav>
@@ -81,6 +81,14 @@ $('#app').innerHTML = `
         <p class="sub">마음에 드는 기념품을 장바구니에 담아 보세요. (가격은 예시예요)</p>
       </div>
       <div id="products" class="grid"></div>
+    </section>
+    <section id="map3d" class="wrap">
+      <div class="sec-head">
+        <h2>🗺️ 제주 3D 탐험 지도</h2>
+        <a class="btn ghost" href="/jeju3d.html">전체 화면으로 보기 ↗</a>
+      </div>
+      <p class="sub">지도를 클릭한 뒤 드래그로 회전, 휠로 확대해 보세요. 관광지·올레길·항·포구·감귤 재배지와 서귀포 관람객 추이를 볼 수 있어요.</p>
+      <iframe class="map3d" src="/jeju3d.html?embed=1" title="제주 3D 탐험 지도" loading="lazy"></iframe>
     </section>
     <section id="about" class="wrap about">
       <h2>제주 이야기</h2>

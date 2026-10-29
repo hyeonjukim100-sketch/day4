@@ -647,6 +647,14 @@ function frame(now) {
 }
 
 /* ======================= 시작 ======================= */
+// 메인 페이지에 iframe으로 끼워 넣은 경우: 휠 스크롤이 지도 확대에 빼앗기지 않도록 클릭 후에만 확대
+if (new URLSearchParams(location.search).has('embed')) {
+  $('#back').style.display = 'none'; $('#layers').style.top = '12px';
+  controls.enableZoom = false;
+  canvas.addEventListener('pointerdown', () => { controls.enableZoom = true; });
+  document.addEventListener('pointerleave', () => { controls.enableZoom = false; });
+  document.documentElement.addEventListener('mouseleave', () => { controls.enableZoom = false; });
+}
 resize();
 paintTerrain();
 applyExag();
