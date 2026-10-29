@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three.js Animation</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05060f; overflow: hidden; font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  #jeju-btn { position: fixed; top: 64px; right: 16px; background: rgba(20, 26, 58, 0.8); color: #cfd6ff; border: 1px solid #2c356b; border-radius: 8px; padding: 10px 18px; font: inherit; font-size: 14px; cursor: pointer; }
+  #jeju-btn:hover { background: #1d2552; }
+  #space-btn { position: fixed; top: 16px; right: 16px; background: rgba(20, 26, 58, 0.8); color: #cfd6ff; border: 1px solid #2c356b; border-radius: 8px; padding: 10px 18px; font: inherit; font-size: 14px; cursor: pointer; }
+  #space-btn:hover { background: #1d2552; }
+  #game-btn { position: fixed; top: 112px; right: 16px; background: rgba(20, 26, 58, 0.8); color: #cfd6ff; border: 1px solid #2c356b; border-radius: 8px; padding: 10px 18px; font: inherit; font-size: 14px; cursor: pointer; }
+  #game-btn:hover { background: #1d2552; }
+  #car-btn { position: fixed; top: 160px; right: 16px; background: rgba(20, 26, 58, 0.8); color: #cfd6ff; border: 1px solid #2c356b; border-radius: 8px; padding: 10px 18px; font: inherit; font-size: 14px; cursor: pointer; }
+  #car-btn:hover { background: #1d2552; }
+  #ai-btn { position: fixed; top: 208px; right: 16px; background: rgba(20, 26, 58, 0.8); color: #cfd6ff; border: 1px solid #2c356b; border-radius: 8px; padding: 10px 18px; font: inherit; font-size: 14px; cursor: pointer; }
+  #ai-btn:hover { background: #1d2552; }
+  #hint { position: fixed; left: 16px; bottom: 12px; color: #8a90b8; font-size: 13px; pointer-events: none; }
+</style>
+</head>
+<body>
+<button id="space-btn" onclick="location.href='space.html'">🚀 우주 애니메이션 보기</button>
+<button id="jeju-btn" onclick="location.href='jeju.html'">🌊 제주도 애니메이션 보기</button>
+<button id="game-btn" onclick="location.href='game.html'">🍊 감귤 게임 하기</button>
+<button id="car-btn" onclick="location.href='car.html'">🚗 제주 레이싱 하기</button>
+<button id="ai-btn" onclick="location.href='transformer.html'">🤖 AI 트랜스포머 쉽게 보기</button>
+<div id="hint">드래그: 회전 · 휠: 확대/축소 · 클릭: 색상 전환</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x05060f, 0.012);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 500);
+camera.position.set(0, 3, 16);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.6;
+
+// Lights
+scene.add(new THREE.AmbientLight(0x404070, 1.2));
+const lightA = new THREE.PointLight(0xff4fa3, 400, 60);
+const lightB = new THREE.PointLight(0x4fd0ff, 400, 60);
+scene.add(lightA, lightB);
+
+// Central torus knot (solid + wireframe shell)
+const knotGeo = new THREE.TorusKnotGeometry(3, 0.9, 256, 32, 2, 3);
+const knot = new THREE.Mesh(knotGeo, new THREE.MeshStandardMaterial({
+  color: 0x6a5cff, metalness: 0.7, roughness: 0.25, emissive: 0x1a1050
+}));
+const shell = new THREE.Mesh(new THREE.TorusKnotGeometry(3, 1.1, 128, 16, 2, 3),
+  new THREE.MeshBasicMaterial({ color: 0x66e0ff, wireframe: true, transparent: true, opacity: 0.25 }));
+const group = new THREE.Group();
+group.add(knot, shell);
+scene.add(group);
+
+// Orbiting spheres
+const orbiters = [];
+const sphereGeo = new THREE.IcosahedronGeometry(0.35, 2);
+for (let i = 0; i < 24; i++) {
+  const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(i / 24, 0.8, 0.6), emissive: new THREE.Color().setHSL(i / 24, 0.8, 0.3) });
+  const m = new THREE.Mesh(sphereGeo, mat);
+  scene.add(m);
+  orbiters.push({ m, r: 7 + (i % 4) * 1.2, speed: 0.3 + (i % 5) * 0.08, phase: (i / 24) * Math.PI * 2, tilt: (i % 3) * 0.6 });
+}
+
+// Starfield
+const N = 4000;
+const pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+for (let i = 0; i < N; i++) {
+  const r = 30 + Math.random() * 120, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+  pos.set([r * Math.sin(ph) * Math.cos(th), r * Math.sin(ph) * Math.sin(th), r * Math.cos(ph)], i * 3);
+  new THREE.Color().setHSL(0.55 + Math.random() * 0.25, 0.7, 0.75).toArray(col, i * 3);
+}
+const starGeo = new THREE.BufferGeometry();
+starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+starGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.6, vertexColors: true, sizeAttenuation: true }));
+scene.add(stars);
+
+// Click: shift the palette
+let hueShift = 0;
+addEventListener('click', () => { hueShift = (hueShift + 0.2) % 1; });
+
+const clock = new THREE.Clock();
+const tmp = new THREE.Color();
+function animate() {
+  const t = clock.getElapsedTime();
+
+  group.rotation.x = t * 0.25;
+  group.rotation.y = t * 0.4;
+  const s = 1 + Math.sin(t * 1.5) * 0.06;
+  group.scale.setScalar(s);
+  shell.rotation.y = -t * 0.3;
+
+  tmp.setHSL((0.68 + hueShift + t * 0.02) % 1, 0.8, 0.55);
+  knot.material.color.lerp(tmp, 0.05);
+
+  for (const o of orbiters) {
+    const a = t * o.speed + o.phase;
+    o.m.position.set(Math.cos(a) * o.r, Math.sin(a * 1.3) * 2.5, Math.sin(a) * o.r);
+    o.m.position.applyAxisAngle(new THREE.Vector3(1, 0, 0), o.tilt);
+    o.m.scale.setScalar(1 + Math.sin(t * 3 + o.phase) * 0.3);
+  }
+
+  lightA.position.set(Math.cos(t) * 10, Math.sin(t * 0.7) * 6, Math.sin(t) * 10);
+  lightB.position.set(-Math.cos(t * 0.8) * 10, Math.cos(t * 0.5) * 6, -Math.sin(t * 0.8) * 10);
+
+  stars.rotation.y = t * 0.01;
+
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@
 
 ## 폴더 구조
 - `index.html`, `src/` : Vite 프론트엔드 (바닐라 JS)
+- `public/` : 이전 작품(previous.html 및 three.js·게임 데모)
 - `api/pixabay.js` : Vercel 서버리스 함수 (Pixabay 키를 서버에서만 사용)
 - `supabase/schema.sql` : 찜하기 테이블 + RLS 정책
 
@@ -17,7 +18,7 @@
 
 ## 로컬 실행
 ```bash
-cd jeju-site
+
 cp .env.example .env   # 값 채우기
 npm install
 npm run dev
@@ -25,6 +26,6 @@ npm run dev
 
 ## Vercel 배포
 1. Vercel → Add New → Project → GitHub 저장소 Import
-2. **Root Directory** 를 `jeju-site` 로 지정 (Framework: Vite 자동 인식)
+2. Root Directory는 기본값(저장소 루트) 그대로 두세요 (Framework: Vite 자동 인식)
 3. Environment Variables 에 위 3개 등록 → Deploy
 4. Supabase → Authentication → URL Configuration 에 배포 주소를 **Site URL** 로 설정하고 Redirect URLs 에도 추가

@@ -45,6 +45,7 @@ $('#app').innerHTML = `
     <nav>
       <a href="#spots">명소</a>
       <a href="#about">제주 이야기</a>
+      <a href="/previous.html">🎮 이전 작품</a>
     </nav>
     <div id="auth-area"></div>
   </header>
