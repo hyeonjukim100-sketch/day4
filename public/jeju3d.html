@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>제주 3D 탐험 지도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --sea:#1f9fb5; --deep:#0e4b63; --orange:#ff8a1f; --ink:#25303b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #cfe9f2; font-family: 'Noto Sans KR', system-ui, sans-serif; color: var(--ink); }
+  canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .lab { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12px; font-weight: 500; color: #fff; background: rgba(14,75,99,.78);
+    padding: 2px 8px; border-radius: 999px; will-change: transform; display: none; }
+  .lab b { color: #ffd37a; margin-left: 5px; font-weight: 700; }
+  .lab.spot { background: rgba(214,51,108,.85); }
+  .lab.visitor { background: rgba(14,75,99,.88); }
+  .lab.port { background: rgba(31,111,181,.85); }
+  .lab.olle { background: rgba(255,138,31,.92); }
+  .lab.orchard { background: rgba(110,140,20,.85); }
+  .lab.sel { outline: 2px solid #fff; }
+
+  .card { position: fixed; background: rgba(255,255,255,.93); backdrop-filter: blur(8px); border-radius: 16px; box-shadow: 0 8px 28px rgba(14,75,99,.22); }
+  #back { position: fixed; top: 12px; left: 12px; z-index: 5; text-decoration: none; background: #fff; color: var(--deep); font: 400 17px 'Jua', sans-serif;
+    padding: 8px 16px; border-radius: 999px; box-shadow: 0 3px 0 #d8ccb4; }
+  #layers { top: 62px; left: 12px; padding: 12px 14px; width: 214px; z-index: 4; font-size: 14px; }
+  #layers h3 { margin: 0 0 6px; font: 400 18px 'Jua', sans-serif; color: var(--deep); }
+  #layers label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
+  #layers input[type=checkbox] { accent-color: var(--sea); width: 16px; height: 16px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  #layers .rng { margin-top: 8px; border-top: 1px solid #eee3cf; padding-top: 8px; font-size: 13px; }
+  #layers input[type=range] { width: 100%; accent-color: var(--orange); }
+  .views { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .views button, .chipbtn { border: 1px solid #eadfca; background: #fff; color: var(--deep); border-radius: 999px; padding: 4px 11px; font: 500 12.5px 'Noto Sans KR'; cursor: pointer; }
+  .views button:hover, .chipbtn:hover { background: #f4fbfd; border-color: var(--sea); }
+
+  #panel { top: 12px; right: 12px; width: 300px; max-height: calc(100% - 130px); overflow: auto; padding: 16px; z-index: 4; font-size: 14px; }
+  #panel h2 { margin: 0 0 2px; font: 400 24px 'Jua', sans-serif; color: var(--deep); }
+  #panel .cat { display: inline-block; font-size: 12px; padding: 1px 10px; border-radius: 999px; color: #fff; margin-bottom: 8px; }
+  #panel p { margin: 6px 0; line-height: 1.55; color: #46525e; }
+  #panel .note { font-size: 11.5px; color: #8a94a0; margin-top: 10px; }
+  .rank { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .rank button { display: block; width: 100%; text-align: left; border: none; background: #f3f8fa; border-radius: 10px; padding: 7px 10px; cursor: pointer; font: 500 13px 'Noto Sans KR'; position: relative; overflow: hidden; }
+  .rank button i { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(31,159,181,.22); }
+  .rank button span { position: relative; display: flex; justify-content: space-between; gap: 8px; }
+  .rank button:hover { background: #e4f3f7; }
+  .big { font: 400 30px 'Jua', sans-serif; color: var(--orange); }
+  .muted { color: #7a8691; font-size: 12.5px; }
+  .badge { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: #e8f4f7; color: var(--deep); }
+  .badge.live { background: #ddf5e6; color: #1b8a4e; }
+  svg.spark { width: 100%; height: 76px; display: block; margin-top: 6px; }
+
+  #timeline { left: 50%; bottom: 14px; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); padding: 10px 16px; z-index: 4; display: flex; align-items: center; gap: 12px; }
+  #timeline .play { width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--orange); color: #fff; font-size: 16px; cursor: pointer; box-shadow: 0 3px 0 #d96d0a; flex: none; }
+  #timeline .mid { flex: 1; min-width: 0; }
+  #timeline .row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+  #monthLabel { font: 400 20px 'Jua', sans-serif; color: var(--deep); }
+  #timeline input[type=range] { width: 100%; accent-color: var(--orange); margin: 4px 0 0; }
+
+  #loading { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: #cfe9f2; font: 400 22px 'Jua', sans-serif; color: var(--deep); transition: opacity .5s; }
+  #loading.hide { opacity: 0; pointer-events: none; }
+  #hint { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 3; background: rgba(14,40,55,.6); color: #fff; font-size: 12.5px; padding: 5px 14px; border-radius: 999px; pointer-events: none; transition: opacity 1s; white-space: nowrap; }
+
+  @media (max-width: 760px) {
+    #layers { width: 168px; font-size: 13px; padding: 9px 11px; top: 56px; }
+    #panel { top: auto; right: 8px; left: 8px; bottom: 76px; width: auto; max-height: 36%; }
+    #timeline { bottom: 8px; }
+    #hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="labels"></div>
+<a id="back" href="/">← 혼저옵서예 제주</a>
+<div id="hint">드래그: 회전 · 휠/핀치: 확대 · 우클릭/두 손가락: 이동 · 마커를 눌러 보세요</div>
+
+<aside id="layers" class="card">
+  <h3>🗺️ 레이어</h3>
+  <label><input type="checkbox" data-layer="visitor" checked><span class="dot" style="background:#1f9fb5"></span>관람객수 막대</label>
+  <label><input type="checkbox" data-layer="spot" checked><span class="dot" style="background:#d6336c"></span>관광지</label>
+  <label><input type="checkbox" data-layer="olle" checked><span class="dot" style="background:#ff8a1f"></span>올레길 (개략)</label>
+  <label><input type="checkbox" data-layer="port" checked><span class="dot" style="background:#1f6fb5"></span>항 · 포구</label>
+  <label><input type="checkbox" data-layer="orchard" checked><span class="dot" style="background:#8fb81f"></span>감귤 재배지</label>
+  <label><input type="checkbox" id="labelsOn" checked><span class="dot" style="background:#999"></span>이름 표시</label>
+  <div class="rng">지형 높이 과장 <b id="exagVal">3.0</b>배
+    <input type="range" id="exag" min="1" max="6" step="0.5" value="3">
+  </div>
+  <div class="views" id="views">
+    <button data-view="all">전체</button>
+    <button data-view="hallasan">한라산</button>
+    <button data-view="seogwipo">서귀포</button>
+    <button data-view="east">성산·우도</button>
+  </div>
+</aside>
+
+<aside id="panel" class="card"></aside>
+
+<div id="timeline" class="card">
+  <button class="play" id="play" title="재생/정지">▶</button>
+  <div class="mid">
+    <div class="row"><span id="monthLabel">-</span><span class="muted" id="dataBadge"></span></div>
+    <input type="range" id="month" min="0" max="0" value="0">
+  </div>
+</div>
+
+<div id="loading">제주 지형을 만드는 중…</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = s => document.querySelector(s);
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+/* ======================= 좌표 / 지형 ======================= */
+// 1 unit = 1 km. 경위도 → 지도 평면(x: 동쪽, z: 남쪽)
+const LON0 = 126.55, LAT0 = 33.38, KX = 92.96, KZ = 110.95;
+const ll = (lon, lat) => [(lon - LON0) * KX, -(lat - LAT0) * KZ];
+
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rng = mulberry32(20251029);
+
+function hash2(ix, iy) { let h = Math.imul(ix, 374761393) + Math.imul(iy, 668265263) | 0; h = Math.imul(h ^ h >>> 13, 1274126177); return ((h ^ h >>> 16) >>> 0) / 4294967296; }
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy), b = hash2(ix + 1, iy), c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+const fbm = (x, y) => vnoise(x, y) * 0.55 + vnoise(x * 2.1, y * 2.1) * 0.3 + vnoise(x * 4.3, y * 4.3) * 0.15;
+
+// 제주 본섬 해안선 (경도, 위도) — 개략값. 시계 방향
+const COAST_LL = [
+  [126.160,33.295],[126.172,33.340],[126.205,33.372],[126.240,33.394],[126.268,33.413],[126.305,33.451],[126.325,33.470],
+  [126.385,33.490],[126.465,33.510],[126.540,33.521],[126.590,33.528],[126.640,33.545],[126.690,33.555],[126.760,33.561],
+  [126.800,33.558],[126.860,33.528],[126.910,33.497],[126.930,33.478],[126.948,33.458],[126.938,33.425],[126.905,33.395],
+  [126.870,33.365],[126.835,33.325],[126.775,33.295],[126.720,33.275],[126.665,33.265],[126.620,33.250],[126.565,33.240],
+  [126.520,33.232],[126.490,33.232],[126.415,33.238],[126.360,33.232],[126.335,33.226],[126.310,33.213],[126.290,33.203],
+  [126.250,33.211],[126.215,33.230],[126.185,33.262],
+];
+function chaikin(pts, it) {
+  for (let k = 0; k < it; k++) {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      out.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]);
+    }
+    pts = out;
+  }
+  return pts;
+}
+const COAST = chaikin(COAST_LL.map(p => ll(p[0], p[1])), 2);
+// 부속 섬 (경도, 위도, 반지름 km)
+const ISLES = [[126.955,33.503,1.7],[126.2726,33.170,.8],[126.270,33.1167,.55],[126.229,33.417,.65]].map(([lo, la, r]) => [...ll(lo, la), r]);
+
+function polySDF(px, pz, poly) {
+  let inside = false, best = 1e9;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const x1 = poly[i][0], z1 = poly[i][1], x2 = poly[j][0], z2 = poly[j][1];
+    if ((z1 > pz) !== (z2 > pz) && px < (x2 - x1) * (pz - z1) / (z2 - z1) + x1) inside = !inside;
+    const dx = x2 - x1, dz = z2 - z1;
+    let t = ((px - x1) * dx + (pz - z1) * dz) / (dx * dx + dz * dz);
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const ex = x1 + t * dx - px, ez = z1 + t * dz - pz;
+    const d2 = ex * ex + ez * ez;
+    if (d2 < best) best = d2;
+  }
+  const d = Math.sqrt(best);
+  return inside ? d : -d;
+}
+function islandD(x, z) {
+  let d = polySDF(x, z, COAST);
+  for (const s of ISLES) d = Math.max(d, s[2] - Math.hypot(x - s[0], z - s[1]));
+  return d;
+}
+
+const HS = ll(126.533, 33.362); // 한라산
+// 이름 있는 봉우리/오름 + 임의 오름
+const BUMPS = [
+  { ll: [126.3125, 33.2395], h: .39, r: .6 },   // 산방산
+  { ll: [126.9425, 33.4585], h: .26, r: .6 },   // 성산일출봉
+  { ll: [126.2900, 33.2050], h: .11, r: .45 },  // 송악산
+  { ll: [126.9560, 33.5000], h: .13, r: .7 },   // 우도 소머리오름
+].map(b => ({ x: ll(...b.ll)[0], z: ll(...b.ll)[1], h: b.h, r: b.r }));
+for (let n = 0, tries = 0; n < 95 && tries < 2000; tries++) {
+  const x = -33 + rng() * 69, z = -17 + rng() * 31;
+  if (islandD(x, z) < 1.5 || Math.hypot((x - HS[0]) / 1.9, z - HS[1]) < 2.2) continue;
+  BUMPS.push({ x, z, h: .06 + Math.pow(rng(), 1.7) * .3, r: .5 + rng() * .8 }); n++;
+}
+
+function heightKm(x, z, d) {
+  if (d <= 0) return Math.max(d, -6) * 0.05;
+  const ramp = smooth(0, 0.7, d);
+  let h = 0.03 + 0.12 * smooth(0, 5, d);
+  const re = Math.hypot((x - HS[0]) / 1.9, z - HS[1]);
+  if (re < 17) { h += 1.92 * Math.pow(1 - re / 17, 1.35); if (re < 0.5) h -= 0.07 * (1 - re / 0.5); }
+  for (const b of BUMPS) { const q = ((x - b.x) ** 2 + (z - b.z) ** 2) / (b.r * b.r); if (q < 9) h += b.h * Math.exp(-q); }
+  h += (fbm(x * 0.6, z * 0.6) - 0.5) * 0.07 * Math.min(1, h * 4 + 0.3);
+  return Math.max(0.004, h * ramp);
+}
+
+const X0 = -44, X1 = 44, Z0 = -26, Z1 = 32, NX = 252, NZ = 166;
+const DX = (X1 - X0) / NX, DZ = (Z1 - Z0) / NZ, VX = NX + 1, VZ = NZ + 1;
+const hgrid = new Float32Array(VX * VZ), dgrid = new Float32Array(VX * VZ), ngrid = new Float32Array(VX * VZ), tint = new Float32Array(VX * VZ);
+for (let j = 0; j < VZ; j++) for (let i = 0; i < VX; i++) {
+  const x = X0 + i * DX, z = Z0 + j * DZ, k = j * VX + i;
+  const d = islandD(x, z) + (fbm(x * 0.9 + 40, z * 0.9) - 0.5) * 0.35;
+  dgrid[k] = d; hgrid[k] = heightKm(x, z, d); ngrid[k] = fbm(x * 2.3, z * 2.3);
+}
+
+let exag = 3;
+const yOf = h => h >= 0 ? h * exag : h * 0.6;
+function sampleGrid(arr, x, z) {
+  const fx = clamp((x - X0) / DX, 0, NX - 1.0001), fz = clamp((z - Z0) / DZ, 0, NZ - 1.0001);
+  const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, k = j * VX + i;
+  return (arr[k] * (1 - u) + arr[k + 1] * u) * (1 - v) + (arr[k + VX] * (1 - u) + arr[k + VX + 1] * u) * v;
+}
+const groundY = (x, z) => Math.max(0, yOf(sampleGrid(hgrid, x, z)));
+
+/* ======================= three.js 장면 ======================= */
+const canvas = $('#gl');
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); }
+catch (e) { $('#loading').textContent = 'WebGL을 사용할 수 없는 환경이에요 😢'; throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#cfe9f2');
+scene.fog = new THREE.Fog('#cfe9f2', 95, 270);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 500);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 4; controls.maxDistance = 130; controls.maxPolarAngle = Math.PI / 2 - 0.06;
+controls.screenSpacePanning = false;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8fa8b0, 0.95));
+const sun = new THREE.DirectionalLight(0xfff0d8, 1.25); sun.position.set(-40, 60, 35); scene.add(sun);
+
+// 바다
+const deepSea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#14566f' }));
+deepSea.position.y = -0.2; scene.add(deepSea);
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), new THREE.MeshPhongMaterial({ color: '#2aa5c0', transparent: true, opacity: 0.74, shininess: 90, specular: 0x88cccc }));
+scene.add(sea);
+
+// 지형
+const geo = new THREE.BufferGeometry();
+const pos = new Float32Array(VX * VZ * 3), col = new Float32Array(VX * VZ * 3);
+for (let j = 0; j < VZ; j++) for (let i = 0; i < VX; i++) { const k = (j * VX + i) * 3; pos[k] = X0 + i * DX; pos[k + 2] = Z0 + j * DZ; }
+const idx = new Uint32Array(NX * NZ * 6);
+for (let j = 0, n = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const a = j * VX + i, b = a + 1, c = a + VX, d = c + 1; idx.set([a, c, b, b, c, d], n); n += 6; }
+geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+geo.setIndex(new THREE.BufferAttribute(idx, 1));
+const terrain = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+scene.add(terrain);
+
+const STOPS = [[-.3, '#14566f'], [-.12, '#2f8fa6'], [-.02, '#9fd0c4'], [0, '#eadca8'], [.03, '#c4d27f'], [.07, '#86b85a'], [.3, '#5e9f45'], [.6, '#4f8a3b'], [.95, '#7d8a4a'], [1.3, '#8a7a62'], [1.7, '#9c968c'], [1.95, '#e2e2de']].map(([h, c]) => [h, new THREE.Color(c)]);
+const ORCHARD_TINT = new THREE.Color('#d6c43c');
+const tmpC = new THREE.Color();
+function terrainColor(h, n, tw) {
+  let k = 0; while (k < STOPS.length - 2 && h > STOPS[k + 1][0]) k++;
+  const a = STOPS[k], b = STOPS[k + 1];
+  tmpC.copy(a[1]).lerp(b[1], clamp((h - a[0]) / (b[0] - a[0]), 0, 1));
+  const v = 0.9 + n * 0.2; tmpC.multiplyScalar(v);
+  if (tw > 0 && h > 0.02 && h < 0.75) tmpC.lerp(ORCHARD_TINT, tw * 0.6);
+  return tmpC;
+}
+function paintTerrain() {
+  for (let k = 0; k < VX * VZ; k++) { const c = terrainColor(hgrid[k], ngrid[k], layers.orchard ? tint[k] : 0); col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b; }
+  geo.attributes.color.needsUpdate = true;
+}
+function shapeTerrain() {
+  for (let k = 0; k < VX * VZ; k++) pos[k * 3 + 1] = yOf(hgrid[k]);
+  geo.attributes.position.needsUpdate = true;
+  geo.computeVertexNormals(); geo.computeBoundingSphere();
+}
+
+/* ======================= 데이터: 지점 ======================= */
+const SPOTS = [
+  ['hallasan', '한라산 백록담', 126.5330, 33.3617, '해발 1,947m, 대한민국에서 가장 높은 산이에요. 정상에는 화구호 백록담이 있어요.'],
+  ['seongsan', '성산일출봉', 126.9425, 33.4585, '바다 속 화산 폭발로 생긴 수성화산. 일출 명소로 유명하고 유네스코 세계자연유산이에요.'],
+  ['manjang', '만장굴', 126.7710, 33.5285, '세계적 규모의 용암동굴이에요. 전체 약 7.4km 중 일부 구간이 개방돼요.'],
+  ['hyeopjae', '협재해변', 126.2397, 33.3940, '에메랄드빛 바다와 하얀 모래, 비양도가 한눈에 보이는 해변이에요.'],
+  ['seopji', '섭지코지', 126.9300, 33.4240, '붉은 화산송이 언덕과 등대가 있는 해안 절경이에요.'],
+  ['udo', '우도', 126.9560, 33.5030, '성산 앞바다의 작은 섬. 해안 드라이브와 땅콩 아이스크림으로 유명해요.'],
+  ['oedolgae', '외돌개', 126.5455, 33.2385, '바다 한가운데 우뚝 솟은 기암이에요. 서귀포 해안 절경의 상징이에요.'],
+  ['gapa', '가파도', 126.2726, 33.1700, '낮고 평평한 섬으로 봄철 청보리밭이 유명해요.'],
+  ['mara', '마라도', 126.2700, 33.1167, '우리나라 최남단 섬이에요.'],
+];
+const VSITES = [ // 서귀포시 직영관광지 (관람객수 API 필드명 = key)
+  ['천지연폭포', '천지연폭포', 126.5545, 33.2468, '#e8556d', '서귀포 시내에 있는 폭포예요. 숲과 계곡을 따라 걸어 들어가요.'],
+  ['정방폭포', '정방폭포', 126.5726, 33.2441, '#f08a24', '바다로 곧장 떨어지는 폭포로 유명해요.'],
+  ['천제연폭포', '천제연폭포', 126.4170, 33.2527, '#8e63d9', '중문관광단지에 있는 3단 폭포예요.'],
+  ['중문대포 주상절리대', '중문대포 주상절리대', 126.4254, 33.2381, '#1f9fb5', '육각 기둥 모양의 바위가 바다를 따라 늘어선 해안이에요.'],
+  ['산방산_용머리', '산방산·용머리해안', 126.3138, 33.2328, '#3aa05a', '산방산과 용이 엎드린 모양의 사암 해안이에요.'],
+  ['감귤박물관', '감귤박물관', 126.6090, 33.2900, '#e9b11c', '감귤의 역사와 품종을 살펴볼 수 있는 박물관이에요.'],
+];
+const PORTS = [
+  ['jejuhang', '제주항', 126.5435, 33.5190, '제주의 관문 항구. 육지와 연결되는 여객선과 화물선이 드나들어요.'],
+  ['seogwipohang', '서귀포항', 126.5640, 33.2400, '서귀포 앞바다의 항구로 섶섬이 바로 앞에 보여요.'],
+  ['seongsanpo', '성산포항', 126.9300, 33.4730, '우도로 가는 배가 출발하는 항구예요.'],
+  ['hallim', '한림항', 126.2690, 33.4130, '비양도 도항선이 오가는 서쪽 항구예요.'],
+  ['aewol', '애월항', 126.3250, 33.4690, '애월 해안도로 옆 작은 항구예요.'],
+  ['moseulpo', '모슬포항', 126.2510, 33.2160, '마라도·가파도 가는 배가 출발하는 남서쪽 항구예요.'],
+  ['hwasun', '화순항', 126.3380, 33.2290, '산방산 동쪽에 있는 남쪽 항구예요.'],
+  ['gimnyeong', '김녕항', 126.7620, 33.5580, '맑은 바다와 해안 풍경으로 유명한 북동쪽 포구예요.'],
+  ['namwonpo', '남원포구', 126.7165, 33.2765, '큰엉 해안 가까이에 있는 남쪽 포구예요.'],
+];
+const OLLES = [
+  ['olle1', '올레 1코스 (시흥~광치기)', '#ff8a1f', [[126.9100,33.4690],[126.9075,33.4755],[126.9170,33.4795],[126.9240,33.4785],[126.9300,33.4730],[126.9390,33.4640]], '말미오름과 알오름을 지나 성산일출봉 가까이 닿는 올레의 첫 코스예요.'],
+  ['olle5', '올레 5코스 (남원~쇠소깍)', '#1f6fb5', [[126.7180,33.2765],[126.6980,33.2680],[126.6700,33.2640],[126.6500,33.2620],[126.6225,33.2545]], '큰엉과 위미 해안을 따라 쇠소깍까지 이어지는 남쪽 바닷길이에요.'],
+  ['olle7', '올레 7코스 (외돌개~월평)', '#ff8a1f', [[126.5460,33.2390],[126.5200,33.2350],[126.4950,33.2340],[126.4700,33.2430]], '외돌개에서 법환포구·강정을 거치는 서귀포 해안 길이에요.'],
+  ['olle10', '올레 10코스 (화순~모슬포)', '#1f6fb5', [[126.3390,33.2290],[126.3140,33.2330],[126.2950,33.2270],[126.2900,33.2080],[126.2650,33.2080],[126.2520,33.2130]], '산방산·용머리해안·송악산을 지나는 제주 남서쪽 코스예요.'],
+  ['olle14', '올레 14코스 (저지~한림)', '#ff8a1f', [[126.2640,33.3400],[126.2300,33.3640],[126.2120,33.3790],[126.2300,33.3930],[126.2540,33.4020],[126.2700,33.4140]], '곶자왈과 협재·금능 해변을 거치는 서쪽 코스예요.'],
+];
+const ORCHARDS = [ // [이름, 경도, 위도, 퍼짐 km, 나무 수]
+  ['효돈·신효 감귤밭', 126.600, 33.286, 2.4, 260],
+  ['남원 감귤밭', 126.705, 33.296, 2.8, 260],
+  ['위미 감귤밭', 126.660, 33.283, 2.0, 210],
+  ['서귀포 감귤밭', 126.545, 33.276, 2.3, 230],
+  ['중문 감귤밭', 126.430, 33.275, 2.8, 220],
+  ['대정·안덕 감귤밭', 126.320, 33.268, 3.0, 170],
+  ['표선 감귤밭', 126.795, 33.340, 2.4, 150],
+  ['제주시 서부 감귤밭', 126.380, 33.430, 2.4, 80],
+];
+
+/* ======================= 관람객 데이터 ======================= */
+const FALLBACK_ROWS = [ // [연, 월, 감귤, 산방, 정방, 중문, 천제연, 천지연] — API 연결 전 임시(샘플) 데이터
+  [2025,1,5689,43895,31443,58482,21070,51536],[2025,2,4884,43401,25287,48030,16096,41801],[2025,3,3633,59038,32776,58436,24075,57813],
+  [2025,4,3720,64177,50334,87497,33624,87683],[2025,5,4707,65615,51491,95770,33549,96907],[2025,6,4342,53972,48497,81547,31331,76961],
+  [2025,7,5063,17719,47562,83490,27890,70883],[2025,8,6191,27858,55430,95690,29563,78406],[2025,9,4754,30124,48846,87402,29735,74789],
+  [2025,10,6624,40580,70019,119116,47143,104640],[2025,11,7537,44752,47474,80308,32198,78430],[2025,12,7263,38320,40619,65283,20852,59166],
+  [2026,1,7032,37623,37292,68071,20754,59399],[2026,2,5274,36376,37803,80539,20571,53263],[2026,3,2834,53435,45213,82917,28492,61173],
+  [2026,4,3676,40645,59206,117186,37572,85626],[2026,5,4567,66810,65000,123136,37049,99416],[2026,6,3731,38497,50728,108971,29509,76431],
+  [2026,7,4274,28244,25563,113490,49520,77509],
+].map(r => ({ 기준연도: r[0], 기준월: r[1], 감귤박물관: r[2], 산방산_용머리: r[3], 정방폭포: r[4], 중문대포_주상절리대: r[5], 천제연폭포: r[6], 천지연폭포: r[7] }));
+async function loadVisitors() {
+  try {
+    const r = await fetch('/api/visitors');
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    const rows = Array.isArray(j) ? j : j.data;
+    if (!rows || !rows.length) throw new Error('empty');
+    return { rows, live: true };
+  } catch (e) {
+    return { rows: FALLBACK_ROWS, live: false };
+  }
+}
+const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
+const fmt = n => n == null ? '집계 없음' : n.toLocaleString('ko-KR') + '명';
+const getVal = (row, key) => num(row[key] ?? row[key.replace(/ /g, '_')]);
+
+/* ======================= 항목(마커) 구성 ======================= */
+const CAT = { visitor: ['관람객 집계 관광지', '#1f9fb5'], spot: ['관광지', '#d6336c'], olle: ['올레길', '#ff8a1f'], port: ['항 · 포구', '#1f6fb5'], orchard: ['감귤 재배지', '#8fb81f'] };
+const layers = { visitor: true, spot: true, olle: true, port: true, orchard: true };
+const ITEMS = [];
+const pickables = [];
+const labelsEl = $('#labels');
+function makeLabel(it) {
+  const el = document.createElement('div'); el.className = 'lab ' + it.cat; el.textContent = it.name; labelsEl.appendChild(el); it.el = el; it._w = 0;
+}
+function addItem(it) { it.anchor = new THREE.Vector3(); ITEMS.push(it); makeLabel(it); return it; }
+
+const pinSphere = new THREE.SphereGeometry(0.34, 16, 12).translate(0, 1.05, 0);
+const pinCone = new THREE.ConeGeometry(0.26, 0.85, 12).rotateX(Math.PI).translate(0, 0.43, 0);
+function makePin(color) {
+  const g = new THREE.Group(), m = new THREE.MeshLambertMaterial({ color });
+  g.add(new THREE.Mesh(pinSphere, m), new THREE.Mesh(pinCone, m));
+  return g;
+}
+const portBase = new THREE.CylinderGeometry(0.4, 0.4, 0.22, 14).translate(0, 0.11, 0);
+const portMast = new THREE.ConeGeometry(0.2, 0.75, 10).translate(0, 0.6, 0);
+function makePort() {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(portBase, new THREE.MeshLambertMaterial({ color: '#1f6fb5' })), new THREE.Mesh(portMast, new THREE.MeshLambertMaterial({ color: '#ffffff' })));
+  return g;
+}
+function bindPick(obj, it) { obj.traverse(o => { if (o.isMesh) { o.userData.item = it; pickables.push(o); } }); }
+
+const pinned = []; // 거리에 따라 크기를 조절하는 마커 [{obj, it}]
+for (const [id, name, lon, lat, desc] of SPOTS) {
+  const [x, z] = ll(lon, lat), it = addItem({ id, cat: 'spot', name, x, z, desc, kind: 'pin' });
+  it.obj = makePin('#d6336c'); scene.add(it.obj); bindPick(it.obj, it); pinned.push(it);
+}
+for (const [id, name, lon, lat, desc] of PORTS) {
+  const [x, z] = ll(lon, lat), it = addItem({ id, cat: 'port', name, x, z, desc, kind: 'port' });
+  it.obj = makePort(); scene.add(it.obj); bindPick(it.obj, it); pinned.push(it);
+}
+const SITES = [];
+const barGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 22).translate(0, 0.5, 0);
+const discGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.08, 28).translate(0, 0.04, 0);
+for (const [key, name, lon, lat, color, desc] of VSITES) {
+  const [x, z] = ll(lon, lat), it = addItem({ id: key, cat: 'visitor', name, key, x, z, desc, color, val: null, h: 0.02, kind: 'bar' });
+  const g = new THREE.Group();
+  const bar = new THREE.Mesh(barGeo, new THREE.MeshLambertMaterial({ color })); bar.scale.y = 0.02;
+  g.add(bar, new THREE.Mesh(discGeo, new THREE.MeshLambertMaterial({ color: '#ffffff' })));
+  it.bar = bar; it.obj = g; scene.add(g); bindPick(g, it); SITES.push(it);
+}
+// 올레길
+const olleItems = OLLES.map(([id, name, color, pts, desc]) => {
+  const way = pts.map(p => ll(p[0], p[1]));
+  const it = addItem({ id, cat: 'olle', name, x: way[0][0], z: way[0][1], way, color, desc, kind: 'olle' });
+  it.obj = new THREE.Group(); scene.add(it.obj);
+  it.start = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10), new THREE.MeshLambertMaterial({ color })); it.obj.add(it.start);
+  it.tube = null; bindPick(it.start, it);
+  return it;
+});
+function buildOlle(it) {
+  if (it.tube) { it.obj.remove(it.tube); it.tube.geometry.dispose(); }
+  const rough = new THREE.CatmullRomCurve3(it.way.map(p => new THREE.Vector3(p[0], 0, p[1])), false, 'centripetal').getPoints(150);
+  const pts = rough.map(p => new THREE.Vector3(p.x, groundY(p.x, p.z) + 0.14, p.z));
+  it.tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 260, 0.1, 5, false), new THREE.MeshLambertMaterial({ color: it.color, emissive: it.color, emissiveIntensity: 0.25 }));
+  it.obj.add(it.tube); it.tube.userData.item = it; pickables.push(it.tube);
+  it.start.position.set(it.way[0][0], groundY(it.way[0][0], it.way[0][1]) + 0.3, it.way[0][1]);
+  const mid = rough[Math.floor(rough.length / 2)]; it.mx = mid.x; it.mz = mid.z;
+}
+// 감귤 재배지: 지형 색상 + 나무
+const trees = [];
+const orchardItems = ORCHARDS.map(([name, lon, lat, sig, n]) => {
+  const [x, z] = ll(lon, lat);
+  const it = addItem({ id: name, cat: 'orchard', name, x, z, kind: 'orchard', desc: '' });
+  for (let c = 0, tries = 0; c < n && tries < n * 14; tries++) {
+    const u = Math.max(1e-6, rng()), v = rng(), r = Math.sqrt(-2 * Math.log(u)) * sig * 0.6;
+    const tx = x + r * Math.cos(2 * Math.PI * v), tz = z + r * Math.sin(2 * Math.PI * v);
+    const h = sampleGrid(hgrid, tx, tz), d = sampleGrid(dgrid, tx, tz);
+    if (d < 0.4 || h < 0.03 || h > 0.55) continue;
+    trees.push([tx, tz]); c++;
+  }
+  for (let k = 0; k < VX * VZ; k++) {
+    const gx = X0 + (k % VX) * DX, gz = Z0 + Math.floor(k / VX) * DZ;
+    const q = ((gx - x) ** 2 + (gz - z) ** 2) / (sig * sig); if (q < 4) tint[k] = Math.max(tint[k], Math.exp(-q));
+  }
+  return it;
+});
+const treeMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.2, 0), new THREE.MeshLambertMaterial({ color: '#ffffff' }), trees.length);
+{
+  const c = new THREE.Color();
+  trees.forEach((_, i) => { c.set(rng() < 0.5 ? '#3c8a35' : '#ff9a2e').offsetHSL(0, 0, (rng() - 0.5) * 0.08); treeMesh.setColorAt(i, c); });
+  scene.add(treeMesh);
+}
+const mtx = new THREE.Matrix4();
+function placeTrees() {
+  trees.forEach(([x, z], i) => { mtx.makeTranslation(x, groundY(x, z) + 0.2, z); treeMesh.setMatrixAt(i, mtx); });
+  treeMesh.instanceMatrix.needsUpdate = true;
+}
+
+// 선택 링
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.1, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.95, depthTest: false }));
+ring.renderOrder = 10; ring.visible = false; scene.add(ring);
+
+// 우선순위(라벨 겹침 처리용)
+const PRIO = { visitor: 0, spot: 1, port: 2, olle: 3, orchard: 4 };
+const ORDERED = [...ITEMS].sort((a, b) => PRIO[a.cat] - PRIO[b.cat]);
+
+function applyExag() {
+  shapeTerrain();
+  placeTrees();
+  olleItems.forEach(buildOlle);
+  for (const it of ITEMS) {
+    if (it.cat === 'olle') { it.gx = it.mx; it.gz = it.mz; } else { it.gx = it.x; it.gz = it.z; }
+    it.gy = groundY(it.gx, it.gz);
+    if (it.kind !== 'olle' && it.obj) it.obj.position.set(it.x, it.gy, it.z);
+    if (it.kind === 'pin') it.anchor.set(it.x, it.gy + 2.1, it.z);
+    else if (it.kind === 'port') it.anchor.set(it.x, it.gy + 1.5, it.z);
+    else if (it.kind === 'olle') it.anchor.set(it.gx, it.gy + 0.6, it.gz);
+    else if (it.kind === 'orchard') it.anchor.set(it.x, groundY(it.x, it.z) + 0.8, it.z);
+  }
+}
+
+/* ======================= 레이어 / UI ======================= */
+let labelsOn = true, hovered = null, selected = null;
+function setLayer(cat, on) {
+  layers[cat] = on;
+  for (const it of ITEMS) if (it.cat === cat && it.obj) it.obj.visible = on;
+  if (cat === 'orchard') { treeMesh.visible = on; paintTerrain(); }
+  if (selected && !layers[selected.cat]) select(null);
+}
+document.querySelectorAll('[data-layer]').forEach(cb => cb.addEventListener('change', () => setLayer(cb.dataset.layer, cb.checked)));
+$('#labelsOn').addEventListener('change', e => { labelsOn = e.target.checked; });
+$('#exag').addEventListener('input', e => { exag = +e.target.value; $('#exagVal').textContent = exag.toFixed(1); applyExag(); });
+
+/* 시간(월) 슬라이더 + 막대 */
+let rows = [], maxV = 1, mIdx = 0, live = false, playing = null;
+const BAR_MAX = 9;
+function monthLabel(r) { return `${r.기준연도}년 ${r.기준월}월`; }
+function setMonth(i) {
+  mIdx = clamp(i, 0, rows.length - 1);
+  const r = rows[mIdx];
+  $('#month').value = mIdx; $('#monthLabel').textContent = monthLabel(r);
+  for (const s of SITES) { s.val = getVal(r, s.key); s._w = 0; }
+  renderPanel();
+}
+$('#month').addEventListener('input', e => { stopPlay(); setMonth(+e.target.value); });
+function stopPlay() { if (playing) { clearInterval(playing); playing = null; } $('#play').textContent = '▶'; }
+$('#play').addEventListener('click', () => {
+  if (playing) return stopPlay();
+  if (mIdx >= rows.length - 1) setMonth(0);
+  $('#play').textContent = '❚❚';
+  playing = setInterval(() => { if (mIdx >= rows.length - 1) return stopPlay(); setMonth(mIdx + 1); }, 900);
+});
+
+/* 패널 */
+function sparkline(s) {
+  const vals = rows.map(r => getVal(r, s.key)), mx = Math.max(...vals.filter(v => v != null), 1), W = 268, H = 70, n = vals.length;
+  const X = i => 6 + i * (W - 12) / Math.max(1, n - 1), Y = v => H - 8 - (v / mx) * (H - 18);
+  const line = vals.map((v, i) => v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(' ');
+  const cv = vals[mIdx];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${line}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` +
+    (cv != null ? `<circle cx="${X(mIdx)}" cy="${Y(cv)}" r="4.5" fill="#fff" stroke="${s.color}" stroke-width="2.5"/>` : '') + `</svg>`;
+}
+function renderPanel() {
+  const p = $('#panel'), it = selected;
+  if (it && it.cat === 'visitor') {
+    const rank = [...SITES].sort((a, b) => (b.val ?? -1) - (a.val ?? -1)).indexOf(it) + 1;
+    p.innerHTML = `<button class="chipbtn" id="pBack">← 이 달의 순위</button><h2 style="margin-top:8px">${it.name}</h2><span class="cat" style="background:${it.color}">${CAT.visitor[0]}</span>
+      <div class="muted">${monthLabel(rows[mIdx])}</div><div class="big">${fmt(it.val)}</div><div class="muted">6곳 중 ${it.val == null ? '-' : rank + '위'}</div>
+      ${sparkline(it)}<div class="muted">월별 관람객 추이 (${rows.length}개월)</div><p>${it.desc}</p>
+      <div class="note">위치는 개략적인 값입니다. 관람객수는 서귀포시 직영관광지 통계(공공데이터포털)입니다.</div>`;
+  } else if (it) {
+    const c = CAT[it.cat];
+    p.innerHTML = `<button class="chipbtn" id="pBack">← 이 달의 순위</button><h2 style="margin-top:8px">${it.name}</h2><span class="cat" style="background:${c[1]}">${c[0]}</span><p>${it.desc}</p>
+      <div class="note">위치${it.cat === 'olle' ? '·경로' : ''}는 개략적인 참고용 값으로 실제와 다를 수 있어요.</div>`;
+  } else {
+    const sorted = [...SITES].sort((a, b) => (b.val ?? -1) - (a.val ?? -1)), top = Math.max(1, ...SITES.map(s => s.val || 0));
+    const total = SITES.reduce((a, s) => a + (s.val || 0), 0);
+    p.innerHTML = `<h2>제주 3D 탐험 지도</h2><span class="badge ${live ? 'live' : ''}">${live ? '● 실시간 API 데이터' : '샘플 데이터 (API 미연결)'}</span>
+      <p class="muted" style="margin-top:10px">${monthLabel(rows[mIdx])} · 서귀포 직영관광지 6곳 합계</p><div class="big">${fmt(total)}</div>
+      <div class="rank">${sorted.map((s, i) => `<button data-id="${s.id}"><i style="width:${(s.val || 0) / top * 100}%;background:${s.color}33"></i><span><b>${i + 1}. ${s.name}</b><span>${fmt(s.val)}</span></span></button>`).join('')}</div>
+      <div class="note">지도 위 마커나 막대를 누르면 자세한 정보를 볼 수 있어요. 지형·위치는 개략적인 예시이며 실제와 다를 수 있어요.</div>`;
+  }
+  const b = $('#pBack'); if (b) b.onclick = () => select(null);
+  p.querySelectorAll('.rank button').forEach(btn => btn.onclick = () => select(ITEMS.find(i => i.id === btn.dataset.id), true));
+}
+function select(it, fly = true) {
+  selected = it; ring.visible = !!it;
+  renderPanel();
+  if (it && fly) {
+    const t = new THREE.Vector3(it.gx ?? it.x, it.gy ?? 0, it.gz ?? it.z);
+    flyTo(t, it.cat === 'olle' ? 22 : 17);
+  }
+}
+
+/* 카메라 이동 */
+let tween = null;
+function flyTo(target, dist) {
+  const dir = camera.position.clone().sub(controls.target); dir.y = Math.max(dir.y, dir.length() * 0.5); dir.normalize();
+  tween = { t: 0, dur: 1.0, p0: camera.position.clone(), t0: controls.target.clone(), p1: target.clone().addScaledVector(dir, dist), t1: target.clone() };
+}
+controls.addEventListener('start', () => { tween = null; $('#hint').style.opacity = 0; });
+function viewAll() { const k = camera.aspect < 1 ? 1.7 : 1; flyTo(new THREE.Vector3(0, 0, 2), 78 * k); tween.p1.set(14 * k, 44 * k, 68 * k); }
+$('#views').addEventListener('click', e => {
+  const v = e.target.dataset.view; if (!v) return;
+  const P = (lon, lat) => { const [x, z] = ll(lon, lat); return new THREE.Vector3(x, groundY(x, z), z); };
+  if (v === 'all') viewAll();
+  else if (v === 'hallasan') { flyTo(P(126.533, 33.362), 26); tween.p1.set(HS[0] + 6, 14, HS[1] + 28); }
+  else if (v === 'seogwipo') { flyTo(P(126.46, 33.25), 26); tween.p1.set(-4, 14, 28); }
+  else if (v === 'east') { flyTo(P(126.93, 33.46), 20); tween.p1.set(30, 11, -2); }
+});
+
+/* 선택(클릭) / 호버 */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+function pickAt(cx, cy) {
+  ptr.set(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(pickables.filter(o => { let p = o; while (p) { if (p.visible === false) return false; p = p.parent; } return true; }), false);
+  return hits.length ? hits[0].object.userData.item : null;
+}
+let down = null;
+canvas.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+canvas.addEventListener('pointerup', e => {
+  if (!down) return;
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y), dt = performance.now() - down.t; down = null;
+  if (moved < 6 && dt < 450) { const it = pickAt(e.clientX, e.clientY); select(it && it === selected ? it : it, !!it); }
+});
+let hoverReq = false;
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse' || hoverReq || e.buttons) return; hoverReq = true;
+  requestAnimationFrame(() => { hoverReq = false; hovered = pickAt(e.clientX, e.clientY); canvas.style.cursor = hovered ? 'pointer' : 'grab'; });
+});
+
+/* 라벨 */
+const v3 = new THREE.Vector3();
+function updateLabels() {
+  const W = innerWidth, H = innerHeight, placed = [];
+  const order = selected || hovered ? [selected, hovered, ...ORDERED].filter(Boolean) : ORDERED;
+  const seen = new Set();
+  for (const it of order) {
+    if (seen.has(it)) continue; seen.add(it);
+    const el = it.el, forced = it === selected || it === hovered;
+    if (!layers[it.cat] || !(labelsOn || forced)) { el.style.display = 'none'; continue; }
+    v3.copy(it.anchor).project(camera);
+    if (v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1) { el.style.display = 'none'; continue; }
+    const sx = (v3.x * 0.5 + 0.5) * W, sy = (-v3.y * 0.5 + 0.5) * H;
+    if (el.style.display !== 'block') el.style.display = 'block';
+    if (!it._w) { it._w = el.offsetWidth || 80; it._h = el.offsetHeight || 20; }
+    const w = it._w, h = it._h, x0 = sx - w / 2, y0 = sy - h - 2;
+    if (!forced && placed.some(b => x0 < b[2] && x0 + w > b[0] && y0 < b[3] && y0 + h > b[1])) { el.style.display = 'none'; continue; }
+    placed.push([x0, y0, x0 + w, y0 + h]);
+    el.style.transform = `translate(${x0.toFixed(1)}px,${y0.toFixed(1)}px)`;
+    el.classList.toggle('sel', it === selected);
+  }
+}
+function refreshVisitorLabels() {
+  for (const s of SITES) {
+    const t = `${s.name}<b>${s.val == null ? '–' : s.val.toLocaleString('ko-KR')}</b>`;
+    if (s._t !== t) { s._t = t; s.el.innerHTML = t; s._w = 0; }
+  }
+}
+
+/* ======================= 루프 ======================= */
+function resize() {
+  const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (tween) {
+    tween.t += dt; const k = clamp(tween.t / tween.dur, 0, 1), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    camera.position.lerpVectors(tween.p0, tween.p1, e); controls.target.lerpVectors(tween.t0, tween.t1, e);
+    if (k >= 1) tween = null;
+  }
+  controls.update();
+  for (const s of SITES) {
+    const target = s.val == null ? 0 : s.val / maxV * BAR_MAX;
+    s.h += (target - s.h) * Math.min(1, dt * 6);
+    s.bar.scale.y = Math.max(0.02, s.h);
+    s.anchor.set(s.x, s.gy + s.h + 0.7, s.z);
+  }
+  for (const it of pinned) it.obj.scale.setScalar(clamp(camera.position.distanceTo(it.obj.position) / 55, 0.45, 2.2));
+  if (selected) {
+    ring.position.set(selected.gx ?? selected.x, (selected.gy ?? 0) + 0.06, selected.gz ?? selected.z);
+    ring.scale.setScalar(clamp(camera.position.distanceTo(ring.position) / 40, 0.5, 2.5) * (selected.cat === 'visitor' ? 1.15 : 0.9) * (1 + Math.sin(now / 250) * 0.05));
+  }
+  refreshVisitorLabels();
+  updateLabels();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+/* ======================= 시작 ======================= */
+resize();
+paintTerrain();
+applyExag();
+viewAll(); camera.position.copy(tween.p1); controls.target.copy(tween.t1); tween = null; controls.update();
+(async () => {
+  const d = await loadVisitors();
+  live = d.live;
+  rows = d.rows.slice().sort((a, b) => (a.기준연도 - b.기준연도) || (a.기준월 - b.기준월));
+  maxV = Math.max(1, ...rows.flatMap(r => SITES.map(s => getVal(r, s.key) || 0)));
+  $('#month').max = rows.length - 1;
+  $('#dataBadge').textContent = live ? '실시간 API' : '샘플 데이터';
+  setMonth(rows.length - 1);
+  SITES.forEach(s => { s.h = 0.02; });
+  select(null);
+  requestAnimationFrame(frame);
+  setTimeout(() => $('#loading').classList.add('hide'), 100);
+  setTimeout(() => { const h = $('#hint'); if (h) h.style.opacity = 0; }, 7000);
+})();
+</script>
+</body>
+</html>

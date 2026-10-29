@@ -51,6 +51,7 @@ $('#app').innerHTML = `
     <nav>
       <a href="#spots">명소</a>
       <a href="#shop">기념품</a>
+      <a href="/jeju3d.html">3D 지도</a>
       <a href="#about">제주 이야기</a>
       <a href="/previous.html">🎮 이전 작품</a>
     </nav>
